@@ -1,0 +1,40 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 36859b62185be5142daf8c41cc10084053328e17b2462db566e9d7b10a7cf7b4
+
+name:           dirforest
+version:        0.0.0.0
+homepage:       https://github.com/NorfairKing/dirforest#readme
+bug-reports:    https://github.com/NorfairKing/dirforest/issues
+author:         Tom Sydney Kerckhove
+maintainer:     syd@cs-syd.eu
+copyright:      2020 Tom Sydney Kerckhove
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/NorfairKing/dirforest
+
+library
+  exposed-modules:
+      Data.DirForest
+  other-modules:
+      Paths_dirforest
+  hs-source-dirs:
+      src
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , containers
+    , deepseq
+    , filepath
+    , path
+    , path-io
+    , validity
+    , validity-containers
+    , validity-path
+  default-language: Haskell2010
