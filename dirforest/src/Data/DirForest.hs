@@ -12,15 +12,16 @@ module Data.DirForest
   ( DirTree (..),
     DirForest (..),
     empty,
+    null,
     singleton,
     lookup,
     insert,
     fromList,
     toList,
     union,
-    unionsDirForest,
-    null,
+    unions,
     intersection,
+    intersections,
     filter,
     filterHidden,
     difference,
@@ -60,7 +61,7 @@ data DirTree a
 
 instance (Validity a, Ord a) => Validity (DirTree a)
 
-instance (NFData a, Ord a) => NFData (DirTree a)
+instance NFData a => NFData (DirTree a)
 
 instance Foldable DirTree where
   foldMap func =
@@ -113,7 +114,7 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
                         ]
       ]
 
-instance (NFData a, Ord a) => NFData (DirForest a)
+instance NFData a => NFData (DirForest a)
 
 instance Foldable DirForest where
   foldMap func (DirForest dtm) = foldMap (foldMap func) dtm
@@ -129,6 +130,9 @@ instance FromJSON a => FromJSON (DirForest a) where
 
 empty :: DirForest a
 empty = DirForest M.empty
+
+null :: DirForest a -> Bool
+null (DirForest dtm) = M.null dtm
 
 singleton :: Ord a => Path Rel File -> a -> DirForest a
 singleton rp a =
@@ -209,16 +213,16 @@ toList :: Ord a => DirForest a -> [(Path Rel File, a)]
 toList = M.toList . toMap
 
 -- Left-biased
-union :: Ord a => DirForest a -> DirForest a -> DirForest a
+union :: DirForest a -> DirForest a -> DirForest a
 union = unionWith const
 
 -- Left-biased
-unionWith :: Ord a => (a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+unionWith :: (a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
 unionWith func = unionWithKey (\_ a b -> func a b)
 
 -- Left-biased on same paths
 -- TODO: maybe we want to make this more general?
-unionWithKey :: forall a. Ord a => (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+unionWithKey :: forall a. (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
 unionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> DirForest a -> DirForest a
@@ -229,11 +233,8 @@ unionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
       (NodeFile a1, NodeFile a2) -> NodeFile $ func (fromJust $ parseRelFile base) a1 a2
       (l, _) -> l
 
-unionsDirForest :: Ord a => [DirForest a] -> DirForest a
-unionsDirForest = foldl' union empty
-
-null :: DirForest a -> Bool
-null (DirForest dtm) = M.null dtm
+unions :: [DirForest a] -> DirForest a
+unions = foldl' union empty
 
 intersection :: DirForest a -> DirForest b -> DirForest a
 intersection = intersectionWith const
@@ -256,8 +257,14 @@ intersectionWithKey func df1 df2 = fromMaybe empty $ goForest "" df1 df2 -- Beca
       (NodeFile f1, NodeFile f2) -> Just $ NodeFile $ func (fromJust $ parseRelFile base) f1 f2 -- TODO is this what we want?
       _ -> Nothing
 
-filter :: forall a. Show a => (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
-filter filePred = fromMaybe empty . goForest "" -- Because "" FP.</> "anything" = "anything"
+intersections :: [DirForest a] -> DirForest a
+intersections = foldl' intersection empty
+
+filter :: Show a => (a -> Bool) -> DirForest a -> DirForest a
+filter func = filterWithKey (const func)
+
+filterWithKey :: forall a. (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
+filterWithKey filePred = fromMaybe empty . goForest "" -- Because "" FP.</> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> Maybe (DirForest a)
     goForest base (DirForest df) =
@@ -319,7 +326,6 @@ data InsertionError a
 
 instance (Validity a, Ord a) => Validity (InsertionError a)
 
--- TODO we'd like a list of errors, ideally
 fromMap :: Ord a => Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
 fromMap = foldM (\df (rf, cts) -> insert rf cts df) empty . M.toList
 
