@@ -41,3 +41,18 @@ tests:
     - hspec
     - path
     - path-io
+
+benchmarks:
+  dirforest-bench:
+    main: Main.hs
+    source-dirs: bench/
+    ghc-options:
+    - -Wall
+    dependencies:
+    - criterion
+    - genvalidity
+    - dirforest
+    - genvalidity-dirforest
+    - genvalidity-criterion
+    - genvalidity-text
+

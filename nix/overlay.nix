@@ -9,8 +9,10 @@ with final.haskell.lib;
           final.haskellPackages.callCabal2nix "dirforest" (final.gitignoreSource ../dirforest) {}
         );
       genvalidity-dirforest =
-        failOnAllWarnings (
-          final.haskellPackages.callCabal2nix "genvalidity-dirforest" (final.gitignoreSource ../genvalidity-dirforest) {}
+        doBenchmark (
+          failOnAllWarnings (
+            final.haskellPackages.callCabal2nix "genvalidity-dirforest" (final.gitignoreSource ../genvalidity-dirforest) {}
+          )
         );
     };
   haskellPackages =
