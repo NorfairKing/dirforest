@@ -9,28 +9,57 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.DirForest
-  ( DirTree (..),
+  ( -- * Dirforest types
+    DirTree (..),
     DirForest (..),
-    empty,
-    null,
-    singleton,
-    lookup,
-    insert,
-    fromList,
-    toList,
-    union,
-    unions,
-    intersection,
-    intersections,
-    filter,
-    filterHidden,
-    difference,
     InsertionError (..),
+
+    -- * Query
+    null,
+    lookup,
+
+    -- * Construction
+    empty,
+    singleton,
+    insert,
+
+    -- * Conversion
+
+    -- ** Map
     fromMap,
     toMap,
+
+    -- ** List
+    fromList,
+    toList,
+
+    -- * IO
     read,
     readFiltered,
     write,
+
+    -- * Combinations
+
+    -- ** Union
+    union,
+    unionWith,
+    unionWithKey,
+    unions,
+
+    -- ** Intersection
+    intersection,
+    intersectionWith,
+    intersectionWithKey,
+    intersections,
+
+    -- ** Difference
+    difference,
+    differenceWith,
+    differenceWithKey,
+
+    -- * Filter
+    filter,
+    filterHidden,
   )
 where
 
