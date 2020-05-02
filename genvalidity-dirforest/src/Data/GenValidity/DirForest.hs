@@ -2,7 +2,8 @@
 
 module Data.GenValidity.DirForest where
 
-import Data.DirForest
+import Data.DirForest (DirForest (..), DirTree (..))
+import qualified Data.DirForest as DF
 import Data.GenValidity
 import Data.GenValidity.Containers ()
 import Data.GenValidity.Path ()
@@ -23,7 +24,7 @@ instance (Ord a, GenValid a) => GenValid (DirForest a) where
       genNonEmptyDirForest = do
         df <- genValid
         ((,) <$> genValid <*> genValid)
-          `suchThatMap` ( \(p, cts) -> case insertDirForest p cts df of
+          `suchThatMap` ( \(p, cts) -> case DF.insert p cts df of
                             Left _ -> Nothing
                             Right r -> Just r
                         )
@@ -36,4 +37,4 @@ changedDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
 changedDirForest = traverse (\v -> genValid `suchThat` (/= v))
 
 disjunctDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
-disjunctDirForest m = genValid `suchThat` (nullDirForest . intersectionDirForest m)
+disjunctDirForest m = genValid `suchThat` (DF.null . DF.intersection m)

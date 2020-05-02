@@ -11,34 +11,34 @@
 module Data.DirForest
   ( DirTree (..),
     DirForest (..),
-    emptyDirForest,
-    singletonDirForest,
-    lookupDirForest,
-    insertDirForest,
-    dirForestFromList,
-    dirForestToList,
-    unionDirForest,
+    empty,
+    singleton,
+    lookup,
+    insert,
+    fromList,
+    toList,
+    union,
     unionsDirForest,
-    nullDirForest,
-    intersectionDirForest,
-    filterDirForest,
-    filterHiddenDirForest,
-    differenceDirForest,
-    DirForestInsertionError (..),
-    dirForestFromMap,
-    dirForestToMap,
-    readDirForest,
-    readFilteredDirForest,
-    writeDirForest,
+    null,
+    intersection,
+    filter,
+    filterHidden,
+    difference,
+    InsertionError (..),
+    fromMap,
+    toMap,
+    read,
+    readFiltered,
+    write,
   )
 where
 
-import Control.Applicative
+import Control.Applicative ((<|>))
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
-import Data.List
+import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
@@ -51,6 +51,7 @@ import Path
 import Path.IO
 import Path.Internal
 import qualified System.FilePath as FP
+import Prelude hiding (filter, lookup, null, read)
 
 data DirTree a
   = NodeFile a
@@ -126,22 +127,22 @@ instance ToJSON a => ToJSON (DirForest a) where
 instance FromJSON a => FromJSON (DirForest a) where
   parseJSON = fmap DirForest . parseJSON
 
-emptyDirForest :: DirForest a
-emptyDirForest = DirForest M.empty
+empty :: DirForest a
+empty = DirForest M.empty
 
-singletonDirForest :: Ord a => Path Rel File -> a -> DirForest a
-singletonDirForest rp a =
-  case insertDirForest rp a emptyDirForest of
+singleton :: Ord a => Path Rel File -> a -> DirForest a
+singleton rp a =
+  case insert rp a empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
 
-lookupDirForest ::
+lookup ::
   forall a.
   Ord a =>
   Path Rel File ->
   DirForest a ->
   Maybe a
-lookupDirForest rp df = go df (FP.splitDirectories $ fromRelFile rp)
+lookup rp df = go df (FP.splitDirectories $ fromRelFile rp)
   where
     go :: DirForest a -> [FilePath] -> Maybe a
     go (DirForest ts) =
@@ -158,20 +159,20 @@ lookupDirForest rp df = go df (FP.splitDirectories $ fromRelFile rp)
             NodeDir dt_ -> go dt_ ds
             _ -> Nothing
 
-insertDirForest ::
+insert ::
   forall a.
   Ord a =>
   Path Rel File ->
   a ->
   DirForest a ->
-  Either (DirForestInsertionError a) (DirForest a)
-insertDirForest rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile rp)
+  Either (InsertionError a) (DirForest a)
+insert rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile rp)
   where
     go ::
       Path Rel Dir ->
       DirForest a ->
       [FilePath] ->
-      Either (DirForestInsertionError a) (DirForest a)
+      Either (InsertionError a) (DirForest a)
     go cur (DirForest ts) =
       \case
         [] -> Right df -- Should not happen, but just insert nothing if it does.
@@ -190,7 +191,7 @@ insertDirForest rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile 
           case M.lookup d ts of
             Nothing -> do
               let rf = fromJust $ parseRelFile $ FP.joinPath ds -- Cannot fail if the original filepath is valid
-              pure $ DirForest $ M.insert d (NodeDir $ singletonDirForest rf a) ts
+              pure $ DirForest $ M.insert d (NodeDir $ singleton rf a) ts
             Just dt ->
               case dt of
                 NodeFile contents -> do
@@ -201,24 +202,24 @@ insertDirForest rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile 
                   df'' <- go newCur df' ds
                   pure $ DirForest $ M.insert d (NodeDir df'') ts
 
-dirForestFromList :: Ord a => [(Path Rel File, a)] -> Either (DirForestInsertionError a) (DirForest a)
-dirForestFromList = foldM (flip $ uncurry insertDirForest) emptyDirForest
+fromList :: Ord a => [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
+fromList = foldM (flip $ uncurry insert) empty
 
-dirForestToList :: Ord a => DirForest a -> [(Path Rel File, a)]
-dirForestToList = M.toList . dirForestToMap
-
--- Left-biased
-unionDirForest :: Ord a => DirForest a -> DirForest a -> DirForest a
-unionDirForest = unionDirForestWith const
+toList :: Ord a => DirForest a -> [(Path Rel File, a)]
+toList = M.toList . toMap
 
 -- Left-biased
-unionDirForestWith :: Ord a => (a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
-unionDirForestWith func = unionDirForestWithKey (\_ a b -> func a b)
+union :: Ord a => DirForest a -> DirForest a -> DirForest a
+union = unionWith const
+
+-- Left-biased
+unionWith :: Ord a => (a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+unionWith func = unionWithKey (\_ a b -> func a b)
 
 -- Left-biased on same paths
 -- TODO: maybe we want to make this more general?
-unionDirForestWithKey :: forall a. Ord a => (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
-unionDirForestWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
+unionWithKey :: forall a. Ord a => (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+unionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> DirForest a -> DirForest a
     goForest base (DirForest dtm1) (DirForest dtm2) = DirForest $ M.unionWithKey (\p m1 m2 -> goTree (base FP.</> p) m1 m2) dtm1 dtm2
@@ -229,19 +230,19 @@ unionDirForestWithKey func = goForest "" -- Because "" FP.</> "anything" = "anyt
       (l, _) -> l
 
 unionsDirForest :: Ord a => [DirForest a] -> DirForest a
-unionsDirForest = foldl' unionDirForest emptyDirForest
+unionsDirForest = foldl' union empty
 
-nullDirForest :: DirForest a -> Bool
-nullDirForest (DirForest dtm) = M.null dtm
+null :: DirForest a -> Bool
+null (DirForest dtm) = M.null dtm
 
-intersectionDirForest :: DirForest a -> DirForest b -> DirForest a
-intersectionDirForest = intersectionDirForestWith const
+intersection :: DirForest a -> DirForest b -> DirForest a
+intersection = intersectionWith const
 
-intersectionDirForestWith :: (a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
-intersectionDirForestWith func = intersectionDirForestWithKey (\_ a b -> func a b)
+intersectionWith :: (a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
+intersectionWith func = intersectionWithKey (\_ a b -> func a b)
 
-intersectionDirForestWithKey :: forall a b c. (Path Rel File -> a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
-intersectionDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest "" df1 df2 -- Because "" FP.</> "anything" = "anything"
+intersectionWithKey :: forall a b c. (Path Rel File -> a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
+intersectionWithKey func df1 df2 = fromMaybe empty $ goForest "" df1 df2 -- Because "" FP.</> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> DirForest b -> Maybe (DirForest c)
     goForest base (DirForest dtm1) (DirForest dtm2) =
@@ -255,8 +256,8 @@ intersectionDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest 
       (NodeFile f1, NodeFile f2) -> Just $ NodeFile $ func (fromJust $ parseRelFile base) f1 f2 -- TODO is this what we want?
       _ -> Nothing
 
-filterDirForest :: forall a. Show a => (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
-filterDirForest filePred = fromMaybe emptyDirForest . goForest "" -- Because "" FP.</> "anything" = "anything"
+filter :: forall a. Show a => (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
+filter filePred = fromMaybe empty . goForest "" -- Because "" FP.</> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> Maybe (DirForest a)
     goForest base (DirForest df) =
@@ -274,8 +275,8 @@ filterDirForest filePred = fromMaybe emptyDirForest . goForest "" -- Because "" 
         if filePred rf cts then Just dt else Nothing
       NodeDir df -> NodeDir <$> goForest base df
 
-filterHiddenDirForest :: forall a. DirForest a -> DirForest a
-filterHiddenDirForest = fromMaybe emptyDirForest . goForest
+filterHidden :: forall a. DirForest a -> DirForest a
+filterHidden = fromMaybe empty . goForest
   where
     goPair :: FilePath -> DirTree a -> Maybe (DirTree a)
     goPair fp dt = if hidden fp then Nothing else goTree dt
@@ -291,14 +292,14 @@ filterHiddenDirForest = fromMaybe emptyDirForest . goForest
     hidden ('.' : _) = True
     hidden _ = False
 
-differenceDirForest :: DirForest a -> DirForest b -> DirForest a
-differenceDirForest = differenceDirForestWith $ \_ _ -> Nothing
+difference :: DirForest a -> DirForest b -> DirForest a
+difference = differenceWith $ \_ _ -> Nothing
 
-differenceDirForestWith :: (a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest a
-differenceDirForestWith func = differenceDirForestWithKey $ const func
+differenceWith :: (a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest a
+differenceWith func = differenceWithKey $ const func
 
-differenceDirForestWithKey :: forall a b. (Path Rel File -> a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest a
-differenceDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest "" df1 df2 -- Because "" </> "anything" = "anything"
+differenceWithKey :: forall a b. (Path Rel File -> a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest a
+differenceWithKey func df1 df2 = fromMaybe empty $ goForest "" df1 df2 -- Because "" </> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> DirForest b -> Maybe (DirForest a)
     goForest base (DirForest df1_) (DirForest df2_) =
@@ -311,19 +312,19 @@ differenceDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest ""
       (NodeDir df, NodeFile _) -> Just $ NodeDir df -- TODO not sure what the semantics are here
       (NodeDir df1_, NodeDir df2_) -> NodeDir <$> goForest base df1_ df2_
 
-data DirForestInsertionError a
+data InsertionError a
   = FileInTheWay (Path Rel File) a
   | DirInTheWay (Path Rel Dir) (DirForest a)
   deriving (Show, Eq, Ord, Generic)
 
-instance (Validity a, Ord a) => Validity (DirForestInsertionError a)
+instance (Validity a, Ord a) => Validity (InsertionError a)
 
 -- TODO we'd like a list of errors, ideally
-dirForestFromMap :: Ord a => Map (Path Rel File) a -> Either (DirForestInsertionError a) (DirForest a)
-dirForestFromMap = foldM (\df (rf, cts) -> insertDirForest rf cts df) emptyDirForest . M.toList
+fromMap :: Ord a => Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
+fromMap = foldM (\df (rf, cts) -> insert rf cts df) empty . M.toList
 
-dirForestToMap :: DirForest a -> Map (Path Rel File) a
-dirForestToMap = M.foldlWithKey go M.empty . unDirForest
+toMap :: DirForest a -> Map (Path Rel File) a
+toMap = M.foldlWithKey go M.empty . unDirForest
   where
     go :: Map (Path Rel File) a -> FilePath -> DirTree a -> Map (Path Rel File) a
     go m path =
@@ -333,48 +334,48 @@ dirForestToMap = M.foldlWithKey go M.empty . unDirForest
            in M.insert rf contents m
         NodeDir df ->
           let rd = fromJust (parseRelDir path) -- Cannot fail if the original dirforest is valid
-           in M.union m $ M.mapKeys (rd </>) (dirForestToMap df)
+           in M.union m $ M.mapKeys (rd </>) (toMap df)
 
-readDirForest ::
+read ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readDirForest = readFilteredDirForest (const True)
+read = readFiltered (const True)
 
-readFilteredDirForest ::
+readFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   (Path b File -> Bool) ->
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readFilteredDirForest filePred root readFunc = do
+readFiltered filePred root readFunc = do
   mFiles <- liftIO $ forgivingAbsence $ snd <$> listDirRecurRel root
-  foldM go emptyDirForest $ fromMaybe [] mFiles
+  foldM go empty $ fromMaybe [] mFiles
   where
     go df p =
       let path = root </> p
        in if filePred path
             then do
               contents <- readFunc path
-              case insertDirForest p contents df of
+              case insert p contents df of
                 Left _ ->
                   error
                     "There can't have been anything in the way while reading a dirforest, but there was."
                 Right df' -> pure df'
             else pure df
 
-writeDirForest ::
+write ::
   forall a b.
   Ord a =>
   Path b Dir ->
   DirForest a ->
   (Path b File -> a -> IO ()) ->
   IO ()
-writeDirForest root dirForest writeFunc =
-  forM_ (M.toList $ dirForestToMap dirForest) $ \(path, contents) -> do
+write root dirForest writeFunc =
+  forM_ (M.toList $ toMap dirForest) $ \(path, contents) -> do
     let f = root </> path
     ensureDir $ parent f
     writeFunc f contents
