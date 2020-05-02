@@ -7,26 +7,29 @@ import qualified Data.ByteString as SB
 import Data.DirForest
 import Data.GenValidity.ByteString ()
 import Data.GenValidity.DirForest
-import Data.Int
 import qualified Data.Map as M
+import Data.Word
 import Path
 import Path.IO
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.Validity
+import Test.Validity.Aeson
 
 spec :: Spec
 spec = modifyMaxShrinks (const 100) $ do
-  genValidSpec @(DirTree Int8)
-  genValidSpec @(DirForest Int8)
-  describe "emptyDirForest" $ it "is valid" $ shouldBeValid (emptyDirForest @Int)
+  genValidSpec @(DirTree Word8)
+  jsonSpecOnValid @(DirTree Word8)
+  genValidSpec @(DirForest Word8)
+  jsonSpecOnValid @(DirForest Word8)
+  describe "emptyDirForest" $ it "is valid" $ shouldBeValid (emptyDirForest @Word8)
   describe "singletonDirForest"
     $ it "produces valid forests"
-    $ producesValidsOnValids2 (singletonDirForest @Int)
+    $ producesValidsOnValids2 (singletonDirForest @Word8)
   describe "lookupDirForest"
     $ it "produces valid values"
-    $ producesValidsOnValids2 (lookupDirForest @Int)
+    $ producesValidsOnValids2 (lookupDirForest @Word8)
   describe "insertDirForest" $ do
     it "works for this example of a file"
       $ forAllValid
@@ -99,7 +102,7 @@ spec = modifyMaxShrinks (const 100) $ do
                         ]
                   }
               )
-    it "produces valid forests" $ producesValidsOnValids3 (insertDirForest @Int)
+    it "produces valid forests" $ producesValidsOnValids3 (insertDirForest @Word8)
     it "inserts something that can be found again afterward"
       $ forAllValid
       $ \dirForest ->
@@ -112,15 +115,15 @@ spec = modifyMaxShrinks (const 100) $ do
     $ it
       "produces valid dir forests"
     $ producesValidsOnValids
-      (dirForestFromList @Int)
+      (dirForestFromList @Word8)
   describe "unionDirForest" $
     do
       it
         "produces valid dir forests"
         $ producesValidsOnValids2
-          (unionDirForest @Int)
+          (unionDirForest @Word8)
       it "is associative" $
-        associativeOnValids (unionDirForest @Int)
+        associativeOnValids (unionDirForest @Word8)
       it "is idempotent"
         $ forAllValid
         $ \dm1 -> forAllValid $ \dm2 ->
@@ -130,19 +133,19 @@ spec = modifyMaxShrinks (const 100) $ do
     $ it
       "produces valid dir forests"
     $ producesValidsOnValids
-      (unionsDirForest @Int)
+      (unionsDirForest @Word8)
   describe "nullDirForest"
     $ it
       "produces valid dir forests"
     $ producesValidsOnValids
-      (nullDirForest @Int)
+      (nullDirForest @Word8)
   describe "intersectionDirForest" $ do
     it
       "produces valid dir forests"
       $ producesValidsOnValids2
-        (intersectionDirForest @Int @Int)
+        (intersectionDirForest @Word8 @Word8)
     it "is associative" $
-      associativeOnValids (intersectionDirForest @Int @Int)
+      associativeOnValids (intersectionDirForest @Word8 @Word8)
     it "is idempotent"
       $ forAllValid
       $ \dm1 -> forAllValid $ \dm2 ->
@@ -150,39 +153,39 @@ spec = modifyMaxShrinks (const 100) $ do
          in (res `intersectionDirForest` dm2) `shouldBe` (res :: DirForest Int)
     it "should produce an empty list for disjunct dir forests"
       $ forAllValid
-      $ \dm1 -> forAll (disjunctDirForest dm1) $ \dm2 -> intersectionDirForest @Int @Int dm1 dm2 `shouldBe` emptyDirForest
-    it "shows that any dirforest is its own fixed point" $ forAllValid $ \df -> intersectionDirForest @Int @Int df df `shouldBe` df
+      $ \dm1 -> forAll (disjunctDirForest dm1) $ \dm2 -> intersectionDirForest @Word8 @Word8 dm1 dm2 `shouldBe` emptyDirForest
+    it "shows that any dirforest is its own fixed point" $ forAllValid $ \df -> intersectionDirForest @Word8 @Word8 df df `shouldBe` df
   describe "filterDirForest" $ do
     it
       "produces valid dir forests for const True"
       $ producesValidsOnValids
       $ filterDirForest
-        @Int
+        @Word8
         (const $ const True)
     it
       "produces the same forest for const True"
       $ forAllValid
-      $ \df -> filterDirForest @Int (const $ const True) df `shouldBe` df
+      $ \df -> filterDirForest @Word8 (const $ const True) df `shouldBe` df
     it
       "produces valid dir forests for const False"
       $ producesValidsOnValids
-      $ filterDirForest @Int
+      $ filterDirForest @Word8
         (const $ const False)
     it
       "produces the empty forest for const False"
       $ forAllValid
-      $ \df -> filterDirForest @Int (const $ const False) df `shouldBe` emptyDirForest
+      $ \df -> filterDirForest @Word8 (const $ const False) df `shouldBe` emptyDirForest
     it "other tests" pending
   describe "filterDirForest"
     $ it
       "produces valid dir forests for const True"
     $ producesValidsOnValids
-      (filterHiddenDirForest @Int)
+      (filterHiddenDirForest @Word8)
   describe "differenceDirForest" $ do
     it
       "produces valid dir forests"
       $ producesValidsOnValids2
-        (differenceDirForest @Int @Int)
+        (differenceDirForest @Word8 @Word8)
     it "other tests" pending
   describe "dirForestToMap" $ do
     it "works for this example with a file"
@@ -236,7 +239,7 @@ spec = modifyMaxShrinks (const 100) $ do
                   )
           dirForestToMap df
             `shouldBe` M.fromList [([relfile|a/a|], contents1), ([relfile|a/b|], contents2)]
-    it "produces valid maps" $ producesValidsOnValids (dirForestToMap @Int)
+    it "produces valid maps" $ producesValidsOnValids (dirForestToMap @Word8)
   describe "readDirForest" $ do
     it "reads an empty forest if the directory doesn't exist" $ do
       tdirDeleted <- withSystemTempDir "mergeful-dirtree" pure

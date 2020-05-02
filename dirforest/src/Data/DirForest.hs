@@ -33,9 +33,11 @@ module Data.DirForest
   )
 where
 
+import Control.Applicative
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Aeson
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -69,6 +71,14 @@ instance Traversable DirTree where
     \case
       NodeFile v -> NodeFile <$> func v
       NodeDir df -> NodeDir <$> traverse func df
+
+instance FromJSON a => FromJSON (DirTree a) where
+  parseJSON v = NodeFile <$> parseJSON v <|> NodeDir <$> parseJSON v
+
+instance ToJSON a => ToJSON (DirTree a) where
+  toJSON = \case
+    NodeFile v -> toJSON v
+    NodeDir df -> toJSON df
 
 newtype DirForest a
   = DirForest
@@ -123,6 +133,12 @@ instance Foldable DirForest where
 
 instance Traversable DirForest where
   traverse func (DirForest dtm) = DirForest <$> traverse (traverse func) dtm
+
+instance ToJSON a => ToJSON (DirForest a) where
+  toJSON = toJSON . unDirForest
+
+instance FromJSON a => FromJSON (DirForest a) where
+  parseJSON = fmap DirForest . parseJSON
 
 emptyDirForest :: DirForest a
 emptyDirForest = DirForest M.empty

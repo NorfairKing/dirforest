@@ -37,6 +37,7 @@ tests:
     - genvalidity-bytestring
     - genvalidity-dirforest
     - genvalidity-hspec
+    - genvalidity-hspec-aeson
     - hspec
     - path
     - path-io
