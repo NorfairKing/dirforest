@@ -49,6 +49,7 @@ import Data.Validity.Path ()
 import GHC.Generics (Generic)
 import Path
 import Path.IO
+import Path.Internal
 import qualified System.FilePath as FP
 
 data DirTree a
@@ -94,36 +95,21 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
           let isTopLevel p_ = parent p_ == [reldir|./|]
            in case dt of
                 NodeFile _ ->
-                  case parseRelFile p of
-                    Nothing -> invalid $ "cannot parse as a relative directory: " <> p
-                    Just rf ->
-                      mconcat
-                        [ decorate "The can path can be parsed as a valid relative dir path" $
-                            mconcat
-                              [ declare "and to the same path, no less" $ fromRelFile rf == p,
-                                validate rf
-                              ],
-                          declare "There are no separators on this level" $ isTopLevel rf
+                  let rf = Path p :: Path Rel File
+                   in mconcat
+                        [ declare "There are no separators on this level" $ isTopLevel rf,
+                          validate (Path p :: Path Rel File)
                         ]
                 NodeDir (DirForest df') ->
-                  mconcat
-                    [ declare "The contained dirforest is nonempty" $ not $ M.null df',
-                      declare "the path has no trailing path separator"
-                        $ not
-                        $ FP.hasTrailingPathSeparator p,
-                      case parseRelDir p of
-                        Nothing -> invalid $ "cannot parse as a relative directory: " <> p
-                        Just rd ->
-                          mconcat
-                            [ decorate "The can path can be parsed as a valid relative dir path" $
-                                mconcat
-                                  [ declare "and to the same path, no less" $
-                                      FP.dropTrailingPathSeparator (fromRelDir rd) == p,
-                                    validate rd
-                                  ],
-                              declare "There are no separators on this level" $ isTopLevel rd
-                            ]
-                    ]
+                  let rd = Path (FP.addTrailingPathSeparator p) :: Path Rel Dir
+                   in mconcat
+                        [ declare "The contained dirforest is nonempty" $ not $ M.null df',
+                          declare "the path has no trailing path separator"
+                            $ not
+                            $ FP.hasTrailingPathSeparator p,
+                          declare "There are no separators on this level" $ isTopLevel rd, -- We need this for equality with the files.
+                          validate rd
+                        ]
       ]
 
 instance (NFData a, Ord a) => NFData (DirForest a)
