@@ -157,6 +157,8 @@ spec = modifyMaxShrinks (const 100) $ do
           (DF.union @Word8)
       it "is associative" $
         associativeOnValids (DF.union @Word8)
+      it "is commutative" $
+        commutativeOnValids (DF.union @Word8)
       it "is idempotent"
         $ forAllValid
         $ \dm1 -> forAllValid $ \dm2 ->
@@ -176,6 +178,8 @@ spec = modifyMaxShrinks (const 100) $ do
         (DF.intersection @Word8 @Word8)
     it "is associative" $
       associativeOnValids (DF.intersection @Word8 @Word8)
+    it "is commutative" $
+      commutativeOnValids (DF.intersection @Word8 @Word8)
     it "is idempotent"
       $ forAllValid
       $ \dm1 -> forAllValid $ \dm2 ->
@@ -223,6 +227,8 @@ spec = modifyMaxShrinks (const 100) $ do
       "produces valid dir forests"
       $ producesValidsOnValids2
         (DF.difference @Word8 @Word8)
+    it "is associative" $
+      associativeOnValids (DF.difference @Word8)
     it "behaves the same as M.difference" $ viaMap2 @Word8 DF.difference M.difference
   describe "fromMap" $ do
     it "is the inverse of toMap if it succeeds starting from a dirforest" $ inverseFunctionsIfSecondSucceedsOnValid DF.toMap (DF.fromMap @Word8)
