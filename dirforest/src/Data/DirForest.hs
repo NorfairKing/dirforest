@@ -33,23 +33,17 @@ module Data.DirForest
   )
 where
 
-import Control.Applicative
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Set (Set)
-import qualified Data.Set as S
 import Data.Validity
 import Data.Validity.Containers ()
 import Data.Validity.Map
-import Data.Validity.Path
-import Data.Word
-import Debug.Trace
+import Data.Validity.Path ()
 import GHC.Generics (Generic)
 import Path
 import Path.IO
@@ -87,7 +81,7 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
     mconcat
       [ genericValidate df,
         decorateMap m $ \p dt ->
-          let isTopLevel p = parent p == [reldir|./|]
+          let isTopLevel p_ = parent p_ == [reldir|./|]
            in case dt of
                 NodeFile _ ->
                   case parseRelFile p of
@@ -159,7 +153,7 @@ lookupDirForest rp df = go df (FP.splitDirectories $ fromRelFile rp)
         (d : ds) -> do
           dt <- M.lookup d ts
           case dt of
-            NodeDir dt -> go dt ds
+            NodeDir dt_ -> go dt_ ds
             _ -> Nothing
 
 insertDirForest ::
@@ -255,7 +249,7 @@ intersectionDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest 
             else Just $ DirForest df'
     goTree :: FilePath -> DirTree a -> DirTree b -> Maybe (DirTree c)
     goTree base dt1 dt2 = case (dt1, dt2) of
-      (NodeDir df1, NodeDir df2) -> NodeDir <$> goForest base df1 df2
+      (NodeDir df1_, NodeDir df2_) -> NodeDir <$> goForest base df1_ df2_
       (NodeFile f1, NodeFile f2) -> Just $ NodeFile $ func (fromJust $ parseRelFile base) f1 f2 -- TODO is this what we want?
       _ -> Nothing
 
@@ -305,15 +299,15 @@ differenceDirForestWithKey :: forall a b. (Path Rel File -> a -> b -> Maybe a) -
 differenceDirForestWithKey func df1 df2 = fromMaybe emptyDirForest $ goForest "" df1 df2 -- Because "" </> "anything" = "anything"
   where
     goForest :: FilePath -> DirForest a -> DirForest b -> Maybe (DirForest a)
-    goForest base (DirForest df1) (DirForest df2) =
-      let df' = M.differenceWithKey (\p dt1 dt2 -> goTree (base FP.</> p) dt1 dt2) df1 df2
+    goForest base (DirForest df1_) (DirForest df2_) =
+      let df' = M.differenceWithKey (\p dt1 dt2 -> goTree (base FP.</> p) dt1 dt2) df1_ df2_
        in if M.null df' then Nothing else Just $ DirForest df'
     goTree :: FilePath -> DirTree a -> DirTree b -> Maybe (DirTree a)
     goTree base dt1 dt2 = case (dt1, dt2) of
       (NodeFile v1, NodeFile v2) -> NodeFile <$> func (fromJust $ parseRelFile base) v1 v2
       (NodeFile v, NodeDir _) -> Just $ NodeFile v -- TODO not sure what the semantics are here
       (NodeDir df, NodeFile _) -> Just $ NodeDir df -- TODO not sure what the semantics are here
-      (NodeDir df1, NodeDir df2) -> NodeDir <$> goForest base df1 df2
+      (NodeDir df1_, NodeDir df2_) -> NodeDir <$> goForest base df1_ df2_
 
 data DirForestInsertionError a
   = FileInTheWay (Path Rel File) a
@@ -364,7 +358,7 @@ readFilteredDirForest filePred root readFunc = do
             then do
               contents <- readFunc path
               case insertDirForest p contents df of
-                Left e ->
+                Left _ ->
                   error
                     "There can't have been anything in the way while reading a dirforest, but there was."
                 Right df' -> pure df'

@@ -9,9 +9,6 @@ import Data.GenValidity.ByteString ()
 import Data.GenValidity.DirForest
 import Data.Int
 import qualified Data.Map as M
-import Data.Ratio
-import Data.Set (Set)
-import qualified Data.Set as S
 import Path
 import Path.IO
 import Test.Hspec
@@ -176,11 +173,11 @@ spec = modifyMaxShrinks (const 100) $ do
       $ forAllValid
       $ \df -> filterDirForest @Int (const $ const False) df `shouldBe` emptyDirForest
     it "other tests" pending
-  describe "filterDirForest" $ do
-    it
+  describe "filterDirForest"
+    $ it
       "produces valid dir forests for const True"
-      $ producesValidsOnValids
-        (filterHiddenDirForest @Int)
+    $ producesValidsOnValids
+      (filterHiddenDirForest @Int)
   describe "differenceDirForest" $ do
     it
       "produces valid dir forests"

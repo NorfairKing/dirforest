@@ -36,4 +36,4 @@ changedDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
 changedDirForest = traverse (\v -> genValid `suchThat` (/= v))
 
 disjunctDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
-disjunctDirForest m = genValid `suchThat` (\m' -> nullDirForest $ intersectionDirForest m m')
+disjunctDirForest m = genValid `suchThat` (nullDirForest . intersectionDirForest m)
