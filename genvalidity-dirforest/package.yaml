@@ -41,6 +41,7 @@ tests:
     - hspec
     - path
     - path-io
+    - pretty-show
 
 benchmarks:
   dirforest-bench:

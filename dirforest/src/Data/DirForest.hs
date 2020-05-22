@@ -16,12 +16,17 @@ module Data.DirForest
 
     -- * Query
     null,
+    nullFiles,
     lookup,
 
     -- * Construction
     empty,
     singleton,
     insert,
+
+    -- * Pruning
+    pruneEmptyDirs,
+    anyEmptyDir,
 
     -- * Conversion
 
@@ -115,7 +120,7 @@ instance ToJSON a => ToJSON (DirTree a) where
 newtype DirForest a
   = DirForest
       { unDirForest :: Map FilePath (DirTree a)
-      } -- TODO change 'FilePath' to something more sensible like a FileOrDir, maybe?
+      }
   deriving (Show, Eq, Ord, Generic, Functor)
 
 instance (Validity a, Ord a) => Validity (DirForest a) where
@@ -134,8 +139,7 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
                 NodeDir (DirForest df') ->
                   let rd = Path (FP.addTrailingPathSeparator p) :: Path Rel Dir
                    in mconcat
-                        [ declare "The contained dirforest is nonempty" $ not $ M.null df',
-                          declare "the path has no trailing path separator"
+                        [ declare "the path has no trailing path separator"
                             $ not
                             $ FP.hasTrailingPathSeparator p,
                           declare "There are no separators on this level" $ isTopLevel rd, -- We need this for equality with the files.
@@ -157,17 +161,48 @@ instance ToJSON a => ToJSON (DirForest a) where
 instance FromJSON a => FromJSON (DirForest a) where
   parseJSON = fmap DirForest . parseJSON
 
+-- | The empty forest
 empty :: DirForest a
 empty = DirForest M.empty
 
+-- | True iff the forest is entirely empty
 null :: DirForest a -> Bool
 null (DirForest dtm) = M.null dtm
+
+-- | True iff there are only empty directories in the directory forest
+nullFiles :: DirForest a -> Bool
+nullFiles (DirForest df) = all goTree df
+  where
+    goTree = \case
+      NodeFile _ -> False
+      NodeDir df -> nullFiles df
 
 singleton :: Ord a => Path Rel File -> a -> DirForest a
 singleton rp a =
   case insert rp a empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
+
+-- | Remove all empty directories from a 'DirForest'
+--
+-- This will return 'Nothing' if the root was also empty.
+pruneEmptyDirs :: DirForest a -> Maybe (DirForest a)
+pruneEmptyDirs (DirForest m) =
+  let m' = M.mapMaybe goTree m
+   in if M.null m' then Nothing else Just (DirForest m')
+  where
+    goTree :: DirTree a -> Maybe (DirTree a)
+    goTree dt = case dt of
+      NodeFile _ -> Just dt
+      NodeDir df -> NodeDir <$> pruneEmptyDirs df
+
+anyEmptyDir :: DirForest a -> Bool
+anyEmptyDir (DirForest m) = any goTree m
+  where
+    goTree :: DirTree a -> Bool
+    goTree = \case
+      NodeFile _ -> False
+      NodeDir df -> anyEmptyDir df
 
 lookup ::
   forall a.
@@ -272,17 +307,14 @@ intersectionWith :: (a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
 intersectionWith func = intersectionWithKey (\_ a b -> func a b)
 
 intersectionWithKey :: forall a b c. (Path Rel File -> a -> b -> c) -> DirForest a -> DirForest b -> DirForest c
-intersectionWithKey func df1 df2 = fromMaybe empty $ goForest "" df1 df2 -- Because "" FP.</> "anything" = "anything"
+intersectionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
   where
-    goForest :: FilePath -> DirForest a -> DirForest b -> Maybe (DirForest c)
+    goForest :: FilePath -> DirForest a -> DirForest b -> DirForest c
     goForest base (DirForest dtm1) (DirForest dtm2) =
-      let df' = M.mapMaybe id $ M.intersectionWithKey (\p m1 m2 -> goTree (base FP.</> p) m1 m2) dtm1 dtm2
-       in if M.null df'
-            then Nothing
-            else Just $ DirForest df'
+      DirForest $ M.mapMaybe id $ M.intersectionWithKey (\p m1 m2 -> goTree (base FP.</> p) m1 m2) dtm1 dtm2
     goTree :: FilePath -> DirTree a -> DirTree b -> Maybe (DirTree c)
     goTree base dt1 dt2 = case (dt1, dt2) of
-      (NodeDir df1_, NodeDir df2_) -> NodeDir <$> goForest base df1_ df2_
+      (NodeDir df1_, NodeDir df2_) -> Just $ NodeDir $ goForest base df1_ df2_
       (NodeFile f1, NodeFile f2) -> Just $ NodeFile $ func (fromJust $ parseRelFile base) f1 f2 -- TODO is this what we want?
       _ -> Nothing
 
@@ -293,37 +325,33 @@ filter :: Show a => (a -> Bool) -> DirForest a -> DirForest a
 filter func = filterWithKey (const func)
 
 filterWithKey :: forall a. (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
-filterWithKey filePred = fromMaybe empty . goForest "" -- Because "" FP.</> "anything" = "anything"
+filterWithKey filePred = goForest "" -- Because "" FP.</> "anything" = "anything"
   where
-    goForest :: FilePath -> DirForest a -> Maybe (DirForest a)
+    goForest :: FilePath -> DirForest a -> DirForest a
     goForest base (DirForest df) =
-      let df' =
-            M.mapMaybeWithKey
-              (\p dt -> goTree (base FP.</> p) dt)
-              df
-       in if M.null df'
-            then Nothing
-            else Just (DirForest df')
+      DirForest $
+        M.mapMaybeWithKey
+          (\p dt -> goTree (base FP.</> p) dt)
+          df
     goTree :: FilePath -> DirTree a -> Maybe (DirTree a) -- Nothing means it will be removed
     goTree base dt = case dt of
       NodeFile cts -> do
         rf <- parseRelFile base
         if filePred rf cts then Just dt else Nothing
-      NodeDir df -> NodeDir <$> goForest base df
+      NodeDir df -> Just $ NodeDir $ goForest base df
 
 filterHidden :: forall a. DirForest a -> DirForest a
-filterHidden = fromMaybe empty . goForest
+filterHidden = goForest
   where
     goPair :: FilePath -> DirTree a -> Maybe (DirTree a)
-    goPair fp dt = if hidden fp then Nothing else goTree dt
-    goForest :: DirForest a -> Maybe (DirForest a)
+    goPair fp dt = if hidden fp then Nothing else Just $ goTree dt
+    goForest :: DirForest a -> DirForest a
     goForest (DirForest m) =
-      let m' = M.mapMaybeWithKey goPair m
-       in if M.null m' then Nothing else Just (DirForest m')
-    goTree :: DirTree a -> Maybe (DirTree a)
+      DirForest $ M.mapMaybeWithKey goPair m
+    goTree :: DirTree a -> DirTree a
     goTree dt = case dt of
-      NodeFile _ -> Just dt
-      NodeDir df -> NodeDir <$> goForest df
+      NodeFile _ -> dt
+      NodeDir df -> NodeDir $ goForest df
     hidden [] = False -- Technically not possible, but fine
     hidden ('.' : _) = True
     hidden _ = False
@@ -335,18 +363,17 @@ differenceWith :: (a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest
 differenceWith func = differenceWithKey $ const func
 
 differenceWithKey :: forall a b. (Path Rel File -> a -> b -> Maybe a) -> DirForest a -> DirForest b -> DirForest a
-differenceWithKey func df1 df2 = fromMaybe empty $ goForest "" df1 df2 -- Because "" </> "anything" = "anything"
+differenceWithKey func = goForest "" -- Because "" </> "anything" = "anything"
   where
-    goForest :: FilePath -> DirForest a -> DirForest b -> Maybe (DirForest a)
+    goForest :: FilePath -> DirForest a -> DirForest b -> DirForest a
     goForest base (DirForest df1_) (DirForest df2_) =
-      let df' = M.differenceWithKey (\p dt1 dt2 -> goTree (base FP.</> p) dt1 dt2) df1_ df2_
-       in if M.null df' then Nothing else Just $ DirForest df'
+      DirForest $ M.differenceWithKey (\p dt1 dt2 -> goTree (base FP.</> p) dt1 dt2) df1_ df2_
     goTree :: FilePath -> DirTree a -> DirTree b -> Maybe (DirTree a)
     goTree base dt1 dt2 = case (dt1, dt2) of
       (NodeFile v1, NodeFile v2) -> NodeFile <$> func (fromJust $ parseRelFile base) v1 v2
       (NodeFile v, NodeDir _) -> Just $ NodeFile v -- TODO not sure what the semantics are here
       (NodeDir df, NodeFile _) -> Just $ NodeDir df -- TODO not sure what the semantics are here
-      (NodeDir df1_, NodeDir df2_) -> NodeDir <$> goForest base df1_ df2_
+      (NodeDir df1_, NodeDir df2_) -> Just $ NodeDir $ goForest base df1_ df2_
 
 data InsertionError a
   = FileInTheWay (Path Rel File) a

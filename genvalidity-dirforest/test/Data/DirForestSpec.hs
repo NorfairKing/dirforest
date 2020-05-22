@@ -5,6 +5,7 @@
 
 module Data.DirForestSpec where
 
+import Control.Monad
 import qualified Data.ByteString as SB
 import Data.DirForest (DirForest (..), DirTree (..), InsertionError (..))
 import qualified Data.DirForest as DF
@@ -21,9 +22,10 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.Validity
 import Test.Validity.Aeson
+import Text.Show.Pretty
 
 spec :: Spec
-spec = modifyMaxShrinks (const 100) $ do
+spec = modifyMaxShrinks (const 1000) $ do
   genValidSpec @(DirTree Word8)
   jsonSpecOnValid @(DirTree Word8)
   genValidSpec @(DirForest Word8)
@@ -47,6 +49,17 @@ spec = modifyMaxShrinks (const 100) $ do
       "behaves the same as M.singleton"
       $ forAllValid
       $ \rf -> forAllValid $ \cts -> DF.toMap (DF.singleton @Word8 rf cts) `shouldBe` M.singleton rf cts
+  describe "pruneEmptyDirectories" $ do
+    it "produces valid forests" $
+      producesValidsOnValids (DF.pruneEmptyDirs @Word8)
+    it "produces forests without any empty maps recursively"
+      $ forAllValid
+      $ \df -> case DF.pruneEmptyDirs @Word8 df of
+        Nothing -> True
+        Just df' -> not $ DF.anyEmptyDir df'
+  describe "anyEmptyDir"
+    $ it "produces valid bools"
+    $ producesValidsOnValids (DF.anyEmptyDir @Word8)
   describe "lookup" $ do
     it "produces valid values" $
       producesValidsOnValids2 (DF.lookup @Word8)
@@ -165,6 +178,10 @@ spec = modifyMaxShrinks (const 100) $ do
           let res = dm1 `DF.union` dm2
            in (res `DF.union` dm2) `shouldBe` (res :: DirForest Int)
       it "behaves the same as M.union" $ viaMap2 @Word8 DF.union M.union
+      it "works for this special case" $
+        let df1 = DirForest $ M.fromList [("a", NodeFile 1)]
+            df2 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 2)]))]
+         in DF.union df1 df2 `shouldBe` df1
   describe "unions" $ do
     it
       "produces valid dir forests"
@@ -215,7 +232,7 @@ spec = modifyMaxShrinks (const 100) $ do
     it
       "produces the empty forest for const False"
       $ forAllValid
-      $ \df -> DF.filter @Word8 (const False) df `shouldBe` DF.empty
+      $ \df -> DF.filter @Word8 (const False) df `shouldSatisfy` DF.nullFiles
     it "behaves the same as M.filter" $ forAllValid $ \(w :: Word8) -> viaMap (DF.filter (>= w)) (M.filter (>= w))
   describe "filter"
     $ it
@@ -318,4 +335,18 @@ viaMap2 dfFunc mFunc =
   forAllValid $ \df1 -> forAllValid $ \df2 -> DF.toMap (dfFunc df1 df2) `shouldBe` mFunc (DF.toMap df1) (DF.toMap df2)
 
 viaMapL :: (Show a, Ord a, GenValid a) => ([DirForest a] -> DirForest a) -> ([Map (Path Rel File) a] -> Map (Path Rel File) a) -> Property
-viaMapL dfFunc mFunc = forAllValid $ \dfs -> DF.toMap (dfFunc dfs) `shouldBe` mFunc (map DF.toMap dfs)
+viaMapL dfFunc mFunc = forAllValid $ \dfs ->
+  let expected = dfFunc dfs
+      actualOrErr = DF.fromMap $ mFunc (map DF.toMap dfs)
+   in case actualOrErr of
+        Left _ -> pure () -- Fine
+        Right actual ->
+          unless (expected == actual) $ expectationFailure $
+            unlines
+              [ "input: ",
+                ppShow dfs,
+                "expected: ",
+                ppShow expected,
+                "actual: ",
+                ppShow actual
+              ]

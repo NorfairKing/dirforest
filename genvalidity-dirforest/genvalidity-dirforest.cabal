@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d0118c2aeba9c34745caa8e12f2ffdba03609396346c14fa57c99eb7b470ae95
+-- hash: e78992a33ab8b68a78bcacba5469c01f676ae3352c9a1afa7fbe7005cef564ac
 
 name:           genvalidity-dirforest
 version:        0.0.0.0
@@ -60,6 +60,7 @@ test-suite dirforest-test
     , hspec
     , path
     , path-io
+    , pretty-show
   default-language: Haskell2010
 
 benchmark dirforest-bench
