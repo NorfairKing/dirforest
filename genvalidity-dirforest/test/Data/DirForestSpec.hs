@@ -179,8 +179,8 @@ spec = modifyMaxShrinks (const 1000) $ do
            in (res `DF.union` dm2) `shouldBe` (res :: DirForest Int)
       it "behaves the same as M.union" $ viaMap2 @Word8 DF.union M.union
       it "works for this special case" $
-        let df1 = DirForest $ M.fromList [("a", NodeFile 1)]
-            df2 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 2)]))]
+        let df1 = DirForest $ M.fromList [("a", NodeFile 'a')]
+            df2 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 'b')]))]
          in DF.union df1 df2 `shouldBe` df1
   describe "unions" $ do
     it

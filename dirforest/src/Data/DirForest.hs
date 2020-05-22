@@ -136,7 +136,7 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
                         [ declare "There are no separators on this level" $ isTopLevel rf,
                           validate (Path p :: Path Rel File)
                         ]
-                NodeDir (DirForest df') ->
+                NodeDir (DirForest _) ->
                   let rd = Path (FP.addTrailingPathSeparator p) :: Path Rel Dir
                    in mconcat
                         [ declare "the path has no trailing path separator"
@@ -175,7 +175,7 @@ nullFiles (DirForest df) = all goTree df
   where
     goTree = \case
       NodeFile _ -> False
-      NodeDir df -> nullFiles df
+      NodeDir df' -> nullFiles df'
 
 singleton :: Ord a => Path Rel File -> a -> DirForest a
 singleton rp a =
