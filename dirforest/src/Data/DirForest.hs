@@ -13,6 +13,7 @@ module Data.DirForest
     DirTree (..),
     DirForest (..),
     InsertionError (..),
+    FOD (..),
 
     -- * Query
     null,
@@ -22,7 +23,8 @@ module Data.DirForest
     -- * Construction
     empty,
     singleton,
-    insert,
+    insertFile,
+    insertDir,
 
     -- * Pruning
     pruneEmptyDirs,
@@ -31,18 +33,25 @@ module Data.DirForest
     -- * Conversion
 
     -- ** Map
+    fromFileMap,
+    toFileMap,
     fromMap,
     toMap,
 
     -- ** List
-    fromList,
-    toList,
+    fromFileList,
+    toFileList,
 
     -- * IO
     read,
     readNonHidden,
     readFiltered,
     readNonHiddenFiltered,
+    readOneLevel,
+    readOneLevelNonHidden,
+    readOneLevelFiltered,
+    readOneLevelNonHiddenFiltered,
+    readHelper,
     write,
 
     -- * Combinations
@@ -163,6 +172,14 @@ instance ToJSON a => ToJSON (DirForest a) where
 instance FromJSON a => FromJSON (DirForest a) where
   parseJSON = fmap DirForest . parseJSON
 
+-- | File or Dir
+data FOD a
+  = F a
+  | D
+  deriving (Show, Eq, Ord, Generic, Functor)
+
+instance Validity a => Validity (FOD a)
+
 -- | The empty forest
 empty :: DirForest a
 empty = DirForest M.empty
@@ -181,7 +198,7 @@ nullFiles (DirForest df) = all goTree df
 
 singleton :: Ord a => Path Rel File -> a -> DirForest a
 singleton rp a =
-  case insert rp a empty of
+  case insertFile rp a empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
 
@@ -229,39 +246,51 @@ lookup rp df = go df (FP.splitDirectories $ fromRelFile rp)
             NodeDir dt_ -> go dt_ ds
             _ -> Nothing
 
-insert ::
+insertFOD ::
   forall a.
   Ord a =>
-  Path Rel File ->
-  a ->
+  FilePath ->
+  FOD a ->
   DirForest a ->
   Either (InsertionError a) (DirForest a)
-insert rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile rp)
+insertFOD fp fod df = go [reldir|./|] df (FP.splitDirectories fp)
   where
+    node = case fod of
+      F a -> NodeFile a
+      D -> NodeDir empty
     go ::
       Path Rel Dir ->
       DirForest a ->
       [FilePath] ->
       Either (InsertionError a) (DirForest a)
-    go cur (DirForest ts) =
+    go cur df@(DirForest ts) =
       \case
-        [] -> Right df -- Should not happen, but just insert nothing if it does.
+        [] -> Right df -- Should not happen, but just insertFile nothing if it does.
         [f] ->
+          -- The last piece
           case M.lookup f ts of
-            Nothing -> pure $ DirForest $ M.insert f (NodeFile a) ts
+            Nothing ->
+              pure $ DirForest $ M.insert f node ts
             Just dt ->
               case dt of
                 NodeFile contents -> do
                   let rf = cur </> fromJust (parseRelFile f)
                   Left (FileInTheWay rf contents)
-                NodeDir df' -> do
-                  let rd = cur </> fromJust (parseRelDir f)
-                  Left (DirInTheWay rd df')
+                NodeDir df' -> case fod of
+                  F _ -> do
+                    let rd = cur </> fromJust (parseRelDir f)
+                    Left (DirInTheWay rd df')
+                  D -> pure df -- If it's already there, nothing changes
+
+        -- Not the last piece, must be a dir
         (d : ds) ->
+          -- Check if this piece is already in the forest
           case M.lookup d ts of
+            -- If it isn't, then we need to make it and try again
             Nothing -> do
-              let rf = fromJust $ parseRelFile $ FP.joinPath ds -- Cannot fail if the original filepath is valid
-              pure $ DirForest $ M.insert d (NodeDir $ singleton rf a) ts
+              let df' = DirForest $ M.insert d (NodeDir empty) ts
+              go cur df' (d : ds)
+            -- If it is, then we can recurse down there.
             Just dt ->
               case dt of
                 NodeFile contents -> do
@@ -272,11 +301,28 @@ insert rp a df = go [reldir|./|] df (FP.splitDirectories $ fromRelFile rp)
                   df'' <- go newCur df' ds
                   pure $ DirForest $ M.insert d (NodeDir df'') ts
 
-fromList :: Ord a => [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
-fromList = foldM (flip $ uncurry insert) empty
+insertFile ::
+  forall a.
+  Ord a =>
+  Path Rel File ->
+  a ->
+  DirForest a ->
+  Either (InsertionError a) (DirForest a)
+insertFile rp a = insertFOD (fromRelFile rp) (F a)
 
-toList :: Ord a => DirForest a -> [(Path Rel File, a)]
-toList = M.toList . toMap
+insertDir ::
+  forall a.
+  Ord a =>
+  Path Rel Dir ->
+  DirForest a ->
+  Either (InsertionError a) (DirForest a)
+insertDir rp = insertFOD (fromRelDir rp) D
+
+fromFileList :: Ord a => [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
+fromFileList = foldM (flip $ uncurry insertFile) empty
+
+toFileList :: Ord a => DirForest a -> [(Path Rel File, a)]
+toFileList = M.toList . toFileMap
 
 -- Left-biased
 union :: DirForest a -> DirForest a -> DirForest a
@@ -381,11 +427,11 @@ data InsertionError a
 
 instance (Validity a, Ord a) => Validity (InsertionError a)
 
-fromMap :: Ord a => Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
-fromMap = foldM (\df (rf, cts) -> insert rf cts df) empty . M.toList
+fromFileMap :: Ord a => Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
+fromFileMap = foldM (\df (rf, cts) -> insertFile rf cts df) empty . M.toList
 
-toMap :: DirForest a -> Map (Path Rel File) a
-toMap = M.foldlWithKey go M.empty . unDirForest
+toFileMap :: DirForest a -> Map (Path Rel File) a
+toFileMap = M.foldlWithKey go M.empty . unDirForest
   where
     go :: Map (Path Rel File) a -> FilePath -> DirTree a -> Map (Path Rel File) a
     go m path =
@@ -395,7 +441,21 @@ toMap = M.foldlWithKey go M.empty . unDirForest
            in M.insert rf contents m
         NodeDir df ->
           let rd = fromJust (parseRelDir path) -- Cannot fail if the original dirforest is valid
-           in M.union m $ M.mapKeys (rd </>) (toMap df)
+           in M.union m $ M.mapKeys (rd </>) (toFileMap df)
+
+fromMap :: Ord a => Map FilePath (FOD a) -> Either (InsertionError a) (DirForest a)
+fromMap = foldM (\df (rf, fod) -> insertFOD rf fod df) empty . M.toList
+
+toMap :: DirForest a -> Map FilePath (FOD a)
+toMap = M.foldlWithKey go M.empty . unDirForest
+  where
+    go :: Map FilePath (FOD a) -> FilePath -> DirTree a -> Map FilePath (FOD a)
+    go m path =
+      \case
+        NodeFile contents ->
+          M.insert path (F contents) m
+        NodeDir df ->
+          M.insert path D $ M.union m $ M.mapKeys (path FP.</>) (toMap df)
 
 read ::
   forall a b m.
@@ -433,16 +493,72 @@ readFiltered ::
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readFiltered filePred root readFunc = do
-  mFiles <- liftIO $ forgivingAbsence $ snd <$> listDirRecurRel root
-  foldM go empty $ fromMaybe [] mFiles
+readFiltered = readHelper listDirRecurRel
+
+readOneLevel ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readOneLevel = readOneLevelFiltered (const True)
+
+readOneLevelNonHidden ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readOneLevelNonHidden = readOneLevelNonHiddenFiltered (const True)
+
+readOneLevelNonHiddenFiltered ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  (Path b File -> Bool) ->
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readOneLevelNonHiddenFiltered filePred root = readOneLevelFiltered (\f -> go f && filePred f) root
   where
-    go df p =
+    go af = case stripProperPrefix root af of
+      Nothing -> True -- Whatever
+      Just rf -> not $ hiddenRelFile rf
+
+readOneLevelFiltered ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  (Path b File -> Bool) ->
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readOneLevelFiltered = readHelper listDirRel
+
+readHelper ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  (Path b Dir -> IO ([Path Rel Dir], [Path Rel File])) ->
+  (Path b File -> Bool) ->
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readHelper dirListFunc filePred root readFunc = do
+  (dirs, files) <- fmap (fromMaybe ([], [])) $ liftIO $ forgivingAbsence $ dirListFunc root
+  df1 <- foldM goDir empty dirs
+  foldM goFile df1 files
+  where
+    goDir df p =
+      let path = root </> p
+       in case insertDir p df of
+            Left _ ->
+              error
+                "There can't have been anything in the way while reading a dirforest, but there was."
+            Right df' -> pure df'
+    goFile df p =
       let path = root </> p
        in if filePred path
             then do
               contents <- readFunc path
-              case insert p contents df of
+              case insertFile p contents df of
                 Left _ ->
                   error
                     "There can't have been anything in the way while reading a dirforest, but there was."
@@ -456,11 +572,18 @@ write ::
   DirForest a ->
   (Path b File -> a -> IO ()) ->
   IO ()
-write root dirForest writeFunc =
-  forM_ (M.toList $ toMap dirForest) $ \(path, contents) -> do
-    let f = root </> path
-    ensureDir $ parent f
-    writeFunc f contents
+write root dirForest writeFunc = do
+  ensureDir root
+  forM_ (M.toList $ unDirForest dirForest) $ \(path, dt) ->
+    case dt of
+      NodeFile contents -> do
+        path <- parseRelFile path
+        let af = root </> path
+        writeFunc af contents
+      NodeDir df' -> do
+        path <- parseRelDir path
+        let ad = root </> path
+        write ad df' writeFunc
 
 hiddenRelFile :: Path Rel File -> Bool
 hiddenRelFile = any hiddenHere . FP.splitDirectories . fromRelFile

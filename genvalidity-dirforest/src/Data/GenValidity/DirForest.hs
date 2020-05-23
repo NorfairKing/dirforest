@@ -2,7 +2,7 @@
 
 module Data.GenValidity.DirForest where
 
-import Data.DirForest (DirForest (..), DirTree (..))
+import Data.DirForest (DirForest (..), DirTree (..), FOD (..))
 import qualified Data.DirForest as DF
 import Data.GenValidity
 import Data.GenValidity.Containers ()
@@ -11,6 +11,10 @@ import qualified Data.Map as M
 import Path
 import System.FilePath as FP
 import Test.QuickCheck
+
+instance GenValid a => GenValid (FOD a) where
+  shrinkValid = shrinkValidStructurallyWithoutExtraFiltering
+  genValid = genValidStructurallyWithoutExtraChecking
 
 instance (Ord a, GenValid a) => GenValid (DirForest a) where
   shrinkValid = shrinkValidStructurally

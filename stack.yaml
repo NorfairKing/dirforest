@@ -4,7 +4,7 @@ packages:
 - genvalidity-dirforest
 extra-deps:
 - github: NorfairKing/validity
-  commit: 52d91e065d91fd3d962145d38b98d35280099fad
+  commit: b8c4cb4cafef7eb2feabaf767eb0d96c5fb5b573
   subdirs:
   - genvalidity
   - genvalidity-aeson
