@@ -16,21 +16,19 @@ instance (Ord a, GenValid a) => GenValid (DirForest a) where
   shrinkValid = shrinkValidStructurally
   genValid = DirForest . M.fromList <$> genListOf genPathValuePair
     where
-      genPathValuePair =
+      genPathValuePair = sized $ \s -> do
+        (a, b) <- genSplit s
         oneof
-          [ (,) <$> (fromRelFile <$> genValid) <*> (NodeFile <$> genValid),
-            (,) <$> (FP.dropTrailingPathSeparator . fromRelDir <$> genValid) <*> (NodeDir <$> genNonEmptyDirForest)
+          [ (,) <$> resize a (fromRelFile <$> genValid) <*> resize b (NodeFile <$> genValid),
+            (,) <$> resize a (FP.dropTrailingPathSeparator . fromRelDir <$> genValid) <*> resize b (NodeDir <$> genValid)
           ]
-      genNonEmptyDirForest = do
-        df <- genValid
-        ((,) <$> genValid <*> genValid)
-          `suchThatMap` ( \(p, cts) -> case DF.insert p cts df of
-                            Left _ -> Nothing
-                            Right r -> Just r
-                        )
 
 instance (Ord a, GenValid a) => GenValid (DirTree a) where
-  genValid = genValidStructurallyWithoutExtraChecking
+  genValid = sized $ \s ->
+    oneof
+      [ NodeFile <$> resize (max 0 $ s - 1) genValid,
+        NodeDir <$> resize (max 0 $ s - 1) genValid
+      ]
   shrinkValid = shrinkValidStructurallyWithoutExtraFiltering
 
 changedDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
