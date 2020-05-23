@@ -463,7 +463,7 @@ write root dirForest writeFunc =
     writeFunc f contents
 
 hiddenRelFile :: Path Rel File -> Bool
-hiddenRelFile = not . any hiddenHere . FP.splitDirectories . fromRelFile
+hiddenRelFile = any hiddenHere . FP.splitDirectories . fromRelFile
 
 hiddenHere :: FilePath -> Bool
 hiddenHere [] = False -- Technically not possible, but fine
