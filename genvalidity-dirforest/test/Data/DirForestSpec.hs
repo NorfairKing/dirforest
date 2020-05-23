@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -17,6 +18,7 @@ import Data.Map (Map)
 import Data.Word
 import Path
 import Path.IO
+import qualified System.FilePath as FP
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -30,6 +32,7 @@ spec = modifyMaxShrinks (const 1000) $ do
   jsonSpecOnValid @(DirTree Word8)
   genValidSpec @(DirForest Word8)
   jsonSpecOnValid @(DirForest Word8)
+  monoidSpecOnValid @(DirForest Word8)
   describe "empty" $ do
     it "is valid" $ shouldBeValid (DF.empty @Word8)
     it "behaves the same as M.empty" $ DF.toFileMap @Word8 DF.empty `shouldBe` M.empty
@@ -42,13 +45,14 @@ spec = modifyMaxShrinks (const 1000) $ do
       "behaves the same as M.null"
       $ forAllValid
       $ \df -> DF.null @Word8 df `shouldBe` M.null (DF.toMap df)
-  describe "singleton" $ do
+  describe "singletonFile" $ do
     it "produces valid forests" $
-      producesValidsOnValids2 (DF.singleton @Word8)
-    it
-      "behaves the same as M.singleton"
-      $ forAllValid
-      $ \rf -> forAllValid $ \cts -> DF.toFileMap (DF.singleton @Word8 rf cts) `shouldBe` M.singleton rf cts
+      producesValidsOnValids2 (DF.singletonFile @Word8)
+    it "behaves the same as M.singletonFile" $ forAllValid $ \rf -> forAllValid $ \cts -> DF.toMap (DF.singletonFile @Word8 rf cts) `shouldBe` M.singleton (fromRelFile rf) (F cts)
+  describe "singletonDir" $ do
+    it "produces valid forests" $
+      producesValidsOnValids (DF.singletonDir @Word8)
+    it "behaves the same as M.singletonDir" $ forAllValid $ \rd -> DF.toMap (DF.singletonDir @Word8 rd) `shouldBe` M.singleton (FP.dropTrailingPathSeparator $ fromRelDir rd) D
   describe "pruneEmptyDirectories" $ do
     it "produces valid forests" $
       producesValidsOnValids (DF.pruneEmptyDirs @Word8)
@@ -81,11 +85,19 @@ spec = modifyMaxShrinks (const 1000) $ do
             ( DirForest
                 (M.singleton "foo" (NodeDir (DirForest (M.singleton "bar" (NodeFile contents)))))
             )
+    it "works for this example of a file in a dir if the dir is already there"
+      $ forAllValid
+      $ \contents ->
+        DF.insertFile [relfile|foo/bar|] (contents :: Int) (DF.singletonDir [reldir|foo|])
+          `shouldBe` Right
+            ( DirForest
+                (M.singleton "foo" (NodeDir (DirForest (M.singleton "bar" (NodeFile contents)))))
+            )
     it "works for this example of two files in the same dir"
       $ forAllValid
       $ \contents1 ->
         forAllValid $ \contents2 -> do
-          let dt = DF.singleton [relfile|foo/bar1|] (contents1 :: Int)
+          let dt = DF.singletonFile [relfile|foo/bar1|] (contents1 :: Int)
           DF.insertFile [relfile|foo/bar2|] contents2 dt
             `shouldBe` Right
               ( DirForest
@@ -103,20 +115,20 @@ spec = modifyMaxShrinks (const 1000) $ do
       $ \f ->
         forAllValid $ \contents1 ->
           forAllValid $ \contents2 -> do
-            let dt = DF.singleton f (contents1 :: Int)
+            let dt = DF.singletonFile f (contents1 :: Int)
             DF.insertFile f contents2 dt `shouldBe` Left (FileInTheWay f contents1)
     it "works for this example with a deeper file in the way"
       $ forAllValid
       $ \contents1 ->
         forAllValid $ \contents2 -> do
-          let dt = DF.singleton [relfile|foo|] (contents1 :: Int)
+          let dt = DF.singletonFile [relfile|foo|] (contents1 :: Int)
           DF.insertFile [relfile|foo/bar|] contents2 dt
             `shouldBe` Left (FileInTheWay [relfile|foo|] contents1)
     it "works for this example with a dir in the way"
       $ forAllValid
       $ \contents1 ->
         forAllValid $ \contents2 -> do
-          let dt = DF.singleton [relfile|foo/bar|] (contents1 :: Int)
+          let dt = DF.singletonFile [relfile|foo/bar|] (contents1 :: Int)
           DF.insertFile [relfile|foo|] contents2 dt
             `shouldBe` Left (DirInTheWay [reldir|foo|] (DirForest $ M.singleton "bar" (NodeFile contents1)))
     it "works for this example of the same file in two different directories"
@@ -125,7 +137,7 @@ spec = modifyMaxShrinks (const 1000) $ do
         forAllValid $ \contents2 -> do
           let df =
                 DF.insertFile [relfile|b/a|] contents2 $
-                  DF.singleton [relfile|a|] (contents1 :: Int)
+                  DF.singletonFile [relfile|a|] (contents1 :: Int)
           df
             `shouldBe` Right
               ( DirForest
@@ -312,28 +324,34 @@ spec = modifyMaxShrinks (const 1000) $ do
           DF.toFileMap df
             `shouldBe` M.fromList [([relfile|a/a|], contents1), ([relfile|a/b|], contents2)]
     it "produces valid maps" $ producesValidsOnValids (DF.toFileMap @Word8)
-  describe "readDirForest" $ do
-    it "reads an empty forest if the directory doesn't exist" $ do
-      tdirDeleted <- withSystemTempDir "mergeful-dirtree" pure
-      dirForest' <- DF.read tdirDeleted (SB.readFile . fromAbsFile)
-      dirForest' `shouldBe` DF.empty
-    modifyMaxSuccess (`div` 10)
-      $ modifyMaxSize (`div` 2)
-      $ do
-        it "reads valid forests"
-          $ forAllValid
-          $ \dirForest ->
-            withSystemTempDir "mergeful-dirtree" $ \tdir -> do
-              DF.write tdir dirForest $ \p contents -> SB.writeFile (fromAbsFile p) contents
-              dirForest' <- DF.read tdir (SB.readFile . fromAbsFile)
-              shouldBeValid dirForest'
-        it "reads what was written"
-          $ forAllValid
-          $ \dirForest ->
-            withSystemTempDir "mergeful-dirtree" $ \tdir -> do
+  modifyMaxSuccess (`div` 10) $ modifyMaxSize (`div` 2) $ do
+    describe "readDirForest" $ do
+      it "reads an empty forest if the directory doesn't exist" $ do
+        tdirDeleted <- withSystemTempDir "dirforest-test" pure
+        dirForest' <- DF.read tdirDeleted (SB.readFile . fromAbsFile)
+        dirForest' `shouldBe` DF.empty
+      it "reads valid forests"
+        $ forAllValid
+        $ \dirForest ->
+          withSystemTempDir "dirforest-test" $ \tdir -> do
+            DF.write tdir dirForest $ \p contents -> SB.writeFile (fromAbsFile p) contents
+            dirForest' <- DF.read tdir (SB.readFile . fromAbsFile)
+            shouldBeValid dirForest'
+      let readRoundtrip dirForest =
+            withSystemTempDir "dirforest-test" $ \tdir -> do
               DF.write tdir dirForest $ \p contents -> SB.writeFile (fromAbsFile p) contents
               dirForest' <- DF.read tdir (SB.readFile . fromAbsFile)
               dirForest' `shouldBe` dirForest
+      it "reads what was written for this simple case with one file" $ forAllValid $ \contents -> readRoundtrip $ DF.singletonFile [relfile|a|] contents
+      it "reads what was written for this simple case with one file two directories deep" $ forAllValid $ \contents -> readRoundtrip $ DF.singletonFile [relfile|a/b|] contents
+      it "reads what was written for this simple case with one file two directories deep with the same name as the directory" $ forAllValid $ \contents -> readRoundtrip $ DF.singletonFile [relfile|a/a|] contents
+      it "reads what was written" $ forAllValid readRoundtrip
+    describe "writeDirForest"
+      $ it "works in a nonexistent root"
+      $ forAllValid
+      $ \dirForest -> do
+        tdirDeleted <- withSystemTempDir "dirforest-test" pure
+        DF.write tdirDeleted dirForest (\p contents -> SB.writeFile (fromAbsFile p) contents)
 
 viaMap :: (Show a, Ord a, GenValid a) => (DirForest a -> DirForest a) -> (Map FilePath (FOD a) -> Map FilePath (FOD a)) -> Property
 viaMap dfFunc mFunc =

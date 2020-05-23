@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e78992a33ab8b68a78bcacba5469c01f676ae3352c9a1afa7fbe7005cef564ac
+-- hash: fd70007db0faebc68f387694dcedfe6a310d505c35daf4b0aec7171f0dc22a60
 
 name:           genvalidity-dirforest
 version:        0.0.0.0
@@ -53,6 +53,7 @@ test-suite dirforest-test
     , bytestring
     , containers
     , dirforest
+    , filepath
     , genvalidity-bytestring
     , genvalidity-dirforest
     , genvalidity-hspec

@@ -22,7 +22,8 @@ module Data.DirForest
 
     -- * Construction
     empty,
-    singleton,
+    singletonFile,
+    singletonDir,
     insertFile,
     insertDir,
 
@@ -43,6 +44,8 @@ module Data.DirForest
     toFileList,
 
     -- * IO
+
+    -- ** Read
     read,
     readNonHidden,
     readFiltered,
@@ -51,7 +54,9 @@ module Data.DirForest
     readOneLevelNonHidden,
     readOneLevelFiltered,
     readOneLevelNonHiddenFiltered,
-    readHelper,
+    hiddenRel,
+
+    -- ** Write
     write,
 
     -- * Combinations
@@ -98,6 +103,7 @@ import Path.IO
 import Path.Internal
 import qualified System.FilePath as FP
 import Prelude hiding (filter, lookup, null, read)
+import qualified Prelude
 
 data DirTree a
   = NodeFile a
@@ -160,6 +166,13 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
 
 instance NFData a => NFData (DirForest a)
 
+instance Semigroup (DirForest a) where
+  (<>) = union
+
+instance Monoid (DirForest a) where
+  mempty = empty
+  mappend = (<>)
+
 instance Foldable DirForest where
   foldMap func (DirForest dtm) = foldMap (foldMap func) dtm
 
@@ -196,9 +209,15 @@ nullFiles (DirForest df) = all goTree df
       NodeFile _ -> False
       NodeDir df' -> nullFiles df'
 
-singleton :: Ord a => Path Rel File -> a -> DirForest a
-singleton rp a =
+singletonFile :: Ord a => Path Rel File -> a -> DirForest a
+singletonFile rp a =
   case insertFile rp a empty of
+    Right df -> df
+    _ -> error "There can't have been anything in the way in an empty dir forest."
+
+singletonDir :: Ord a => Path Rel Dir -> DirForest a
+singletonDir rp =
+  case insertDir rp empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
 
@@ -253,7 +272,7 @@ insertFOD ::
   FOD a ->
   DirForest a ->
   Either (InsertionError a) (DirForest a)
-insertFOD fp fod df = go [reldir|./|] df (FP.splitDirectories fp)
+insertFOD fp fod dirForest = go [reldir|./|] dirForest (FP.splitDirectories fp)
   where
     node = case fod of
       F a -> NodeFile a
@@ -265,7 +284,7 @@ insertFOD fp fod df = go [reldir|./|] df (FP.splitDirectories fp)
       Either (InsertionError a) (DirForest a)
     go cur df@(DirForest ts) =
       \case
-        [] -> Right df -- Should not happen, but just insertFile nothing if it does.
+        [] -> Right df -- Should not happen, but just insert nothing if it does.
         [f] ->
           -- The last piece
           case M.lookup f ts of
@@ -316,7 +335,7 @@ insertDir ::
   Path Rel Dir ->
   DirForest a ->
   Either (InsertionError a) (DirForest a)
-insertDir rp = insertFOD (fromRelDir rp) D
+insertDir rp = insertFOD (FP.dropTrailingPathSeparator $ fromRelDir rp) D
 
 fromFileList :: Ord a => [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
 fromFileList = foldM (flip $ uncurry insertFile) empty
@@ -463,7 +482,7 @@ read ::
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-read = readFiltered (const True)
+read = readFiltered (const True) (const True)
 
 readNonHidden ::
   forall a b m.
@@ -471,29 +490,67 @@ readNonHidden ::
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readNonHidden = readNonHiddenFiltered (const True)
+readNonHidden = readNonHiddenFiltered (const True) (const True)
 
 readNonHiddenFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   (Path b File -> Bool) ->
+  (Path b Dir -> Bool) ->
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readNonHiddenFiltered filePred root = readFiltered (\f -> go f && filePred f) root
+readNonHiddenFiltered filePred dirPred root = readFiltered (\f -> go f && filePred f) (\d -> go d && dirPred d) root
   where
     go af = case stripProperPrefix root af of
       Nothing -> True -- Whatever
-      Just rf -> not $ hiddenRelFile rf
+      Just rf -> not $ hiddenRel rf
 
 readFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   (Path b File -> Bool) ->
+  (Path b Dir -> Bool) ->
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readFiltered = readHelper listDirRecurRel
+readFiltered filePred dirPred root readFunc = do
+  e <- doesDirExist root
+  if e
+    then walkDirAccumRel (Just decendHandler) outputWriter root
+    else pure empty
+  where
+    decendHandler :: Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel)
+    decendHandler subdir dirs _ = do
+      let toExclude = Prelude.filter (not . dirPred . ((root </> subdir) </>)) dirs
+      pure $ WalkExclude toExclude
+    outputWriter :: Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (DirForest a)
+    outputWriter subdir dirs files = do
+      df1 <- foldM goDir empty dirs
+      foldM goFile df1 files
+      where
+        goDir :: DirForest a -> Path Rel Dir -> m (DirForest a)
+        goDir df p =
+          let path = root </> subdir </> p
+           in if dirPred path
+                then case insertDir (subdir </> p) df of
+                  Left _ ->
+                    error
+                      "There can't have been anything in the way while reading a dirforest, but there was."
+                  Right df' -> pure df'
+                else pure df
+        goFile :: DirForest a -> Path Rel File -> m (DirForest a)
+        goFile df p =
+          let path = root </> subdir </> p
+           in if filePred path
+                then do
+                  contents <- readFunc path
+                  case insertFile (subdir </> p) contents df of
+                    Left _ ->
+                      error
+                        "There can't have been anything in the way while reading a dirforest, but there was."
+                    Right df' -> pure df'
+                else pure df
 
 readOneLevel ::
   forall a b m.
@@ -501,7 +558,7 @@ readOneLevel ::
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readOneLevel = readOneLevelFiltered (const True)
+readOneLevel = readOneLevelFiltered (const True) (const True)
 
 readOneLevelNonHidden ::
   forall a b m.
@@ -509,50 +566,46 @@ readOneLevelNonHidden ::
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readOneLevelNonHidden = readOneLevelNonHiddenFiltered (const True)
+readOneLevelNonHidden = readOneLevelNonHiddenFiltered (const True) (const True)
 
 readOneLevelNonHiddenFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   (Path b File -> Bool) ->
+  (Path b Dir -> Bool) ->
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readOneLevelNonHiddenFiltered filePred root = readOneLevelFiltered (\f -> go f && filePred f) root
+readOneLevelNonHiddenFiltered filePred dirPred root = readOneLevelFiltered (\f -> go f && filePred f) (\d -> go d && dirPred d) root
   where
     go af = case stripProperPrefix root af of
       Nothing -> True -- Whatever
-      Just rf -> not $ hiddenRelFile rf
+      Just rf -> not $ hiddenRel rf
 
 readOneLevelFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
   (Path b File -> Bool) ->
+  (Path b Dir -> Bool) ->
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
-readOneLevelFiltered = readHelper listDirRel
-
-readHelper ::
-  forall a b m.
-  (Show a, Ord a, MonadIO m) =>
-  (Path b Dir -> IO ([Path Rel Dir], [Path Rel File])) ->
-  (Path b File -> Bool) ->
-  Path b Dir ->
-  (Path b File -> m a) ->
-  m (DirForest a)
-readHelper dirListFunc filePred root readFunc = do
-  (dirs, files) <- fmap (fromMaybe ([], [])) $ liftIO $ forgivingAbsence $ dirListFunc root
+readOneLevelFiltered filePred dirPred root readFunc = do
+  (dirs, files) <- fmap (fromMaybe ([], [])) $ liftIO $ forgivingAbsence $ listDirRel root
   df1 <- foldM goDir empty dirs
   foldM goFile df1 files
   where
+    goDir :: DirForest a -> Path Rel Dir -> m (DirForest a)
     goDir df p =
       let path = root </> p
-       in case insertDir p df of
-            Left _ ->
-              error
-                "There can't have been anything in the way while reading a dirforest, but there was."
-            Right df' -> pure df'
+       in if dirPred path
+            then case insertDir p df of
+              Left _ ->
+                error
+                  "There can't have been anything in the way while reading a dirforest, but there was."
+              Right df' -> pure df'
+            else pure df
+    goFile :: DirForest a -> Path Rel File -> m (DirForest a)
     goFile df p =
       let path = root </> p
        in if filePred path
@@ -567,7 +620,7 @@ readHelper dirListFunc filePred root readFunc = do
 
 write ::
   forall a b.
-  Ord a =>
+  (Show a, Ord a) =>
   Path b Dir ->
   DirForest a ->
   (Path b File -> a -> IO ()) ->
@@ -577,16 +630,16 @@ write root dirForest writeFunc = do
   forM_ (M.toList $ unDirForest dirForest) $ \(path, dt) ->
     case dt of
       NodeFile contents -> do
-        path <- parseRelFile path
-        let af = root </> path
+        f <- parseRelFile path
+        let af = root </> f
         writeFunc af contents
       NodeDir df' -> do
-        path <- parseRelDir path
-        let ad = root </> path
+        d <- parseRelDir path
+        let ad = root </> d
         write ad df' writeFunc
 
-hiddenRelFile :: Path Rel File -> Bool
-hiddenRelFile = any hiddenHere . FP.splitDirectories . fromRelFile
+hiddenRel :: Path Rel t -> Bool
+hiddenRel = any hiddenHere . FP.splitDirectories . toFilePath
 
 hiddenHere :: FilePath -> Bool
 hiddenHere [] = False -- Technically not possible, but fine

@@ -34,6 +34,7 @@ tests:
     - bytestring
     - containers
     - dirforest
+    - filepath
     - genvalidity-bytestring
     - genvalidity-dirforest
     - genvalidity-hspec
@@ -56,4 +57,4 @@ benchmarks:
     - genvalidity-dirforest
     - genvalidity-criterion
     - genvalidity-text
-
+    
