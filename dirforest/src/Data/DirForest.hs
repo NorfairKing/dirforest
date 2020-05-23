@@ -40,7 +40,9 @@ module Data.DirForest
 
     -- * IO
     read,
+    readNonHidden,
     readFiltered,
+    readNonHiddenFiltered,
     write,
 
     -- * Combinations
@@ -344,7 +346,7 @@ filterHidden :: forall a. DirForest a -> DirForest a
 filterHidden = goForest
   where
     goPair :: FilePath -> DirTree a -> Maybe (DirTree a)
-    goPair fp dt = if hidden fp then Nothing else Just $ goTree dt
+    goPair fp dt = if hiddenHere fp then Nothing else Just $ goTree dt
     goForest :: DirForest a -> DirForest a
     goForest (DirForest m) =
       DirForest $ M.mapMaybeWithKey goPair m
@@ -352,9 +354,6 @@ filterHidden = goForest
     goTree dt = case dt of
       NodeFile _ -> dt
       NodeDir df -> NodeDir $ goForest df
-    hidden [] = False -- Technically not possible, but fine
-    hidden ('.' : _) = True
-    hidden _ = False
 
 difference :: DirForest a -> DirForest b -> DirForest a
 difference = differenceWith $ \_ _ -> Nothing
@@ -406,6 +405,27 @@ read ::
   m (DirForest a)
 read = readFiltered (const True)
 
+readNonHidden ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readNonHidden = readNonHiddenFiltered (const True)
+
+readNonHiddenFiltered ::
+  forall a b m.
+  (Show a, Ord a, MonadIO m) =>
+  (Path b File -> Bool) ->
+  Path b Dir ->
+  (Path b File -> m a) ->
+  m (DirForest a)
+readNonHiddenFiltered filePred root = readFiltered (\f -> go f && filePred f) root
+  where
+    go af = case stripProperPrefix root af of
+      Nothing -> True -- Whatever
+      Just rf -> not $ hiddenRelFile rf
+
 readFiltered ::
   forall a b m.
   (Show a, Ord a, MonadIO m) =>
@@ -441,3 +461,11 @@ write root dirForest writeFunc =
     let f = root </> path
     ensureDir $ parent f
     writeFunc f contents
+
+hiddenRelFile :: Path Rel File -> Bool
+hiddenRelFile = not . any hiddenHere . FP.splitDirectories . fromRelFile
+
+hiddenHere :: FilePath -> Bool
+hiddenHere [] = False -- Technically not possible, but fine
+hiddenHere ('.' : _) = True
+hiddenHere _ = False
