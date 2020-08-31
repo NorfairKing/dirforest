@@ -15,6 +15,12 @@ module Data.DirForest
     InsertionError (..),
     FOD (..),
 
+    -- * Comparisons
+    eq1DirTree,
+    ord1DirTree,
+    eq1DirForest,
+    ord1DirForest,
+
     -- * Query
     null,
     nullFiles,
@@ -89,6 +95,7 @@ import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
+import Data.Functor.Classes
 import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -108,9 +115,21 @@ import qualified Prelude
 data DirTree a
   = NodeFile a
   | NodeDir (DirForest a)
-  deriving (Show, Eq, Ord, Generic, Functor)
+  deriving (Show, Generic, Functor)
 
 instance (Validity a, Ord a) => Validity (DirTree a)
+
+instance Eq a => Eq (DirTree a) where
+  (==) = eq1DirTree (==)
+
+instance Ord a => Ord (DirTree a) where
+  compare = ord1DirTree compare
+
+instance Eq1 DirTree where
+  liftEq = eq1DirTree
+
+instance Ord1 DirTree where
+  liftCompare = ord1DirTree
 
 instance NFData a => NFData (DirTree a)
 
@@ -134,11 +153,24 @@ instance ToJSON a => ToJSON (DirTree a) where
     NodeFile v -> toJSON v
     NodeDir df -> toJSON df
 
+eq1DirTree :: (a -> b -> Bool) -> DirTree a -> DirTree b -> Bool
+eq1DirTree eq dt1 dt2 = case (dt1, dt2) of
+  (NodeFile a1, NodeFile a2) -> eq a1 a2
+  (NodeDir df1, NodeDir df2) -> eq1DirForest eq df1 df2
+  _ -> False
+
+ord1DirTree :: (a -> b -> Ordering) -> DirTree a -> DirTree b -> Ordering
+ord1DirTree cmp dt1 dt2 = case (dt1, dt2) of
+  (NodeFile a1, NodeFile a2) -> cmp a1 a2
+  (NodeDir df1, NodeDir df2) -> ord1DirForest cmp df1 df2
+  (NodeFile _, NodeDir _) -> LT
+  (NodeDir _, NodeFile _) -> GT
+
 newtype DirForest a
   = DirForest
       { unDirForest :: Map FilePath (DirTree a)
       }
-  deriving (Show, Eq, Ord, Generic, Functor)
+  deriving (Show, Generic, Functor)
 
 instance (Validity a, Ord a) => Validity (DirForest a) where
   validate df@(DirForest m) =
@@ -164,6 +196,18 @@ instance (Validity a, Ord a) => Validity (DirForest a) where
                         ]
       ]
 
+instance Eq a => Eq (DirForest a) where
+  (==) = eq1DirForest (==)
+
+instance Ord a => Ord (DirForest a) where
+  compare = ord1DirForest compare
+
+instance Eq1 DirForest where
+  liftEq = eq1DirForest
+
+instance Ord1 DirForest where
+  liftCompare = ord1DirForest
+
 instance NFData a => NFData (DirForest a)
 
 instance Semigroup (DirForest a) where
@@ -184,6 +228,18 @@ instance ToJSON a => ToJSON (DirForest a) where
 
 instance FromJSON a => FromJSON (DirForest a) where
   parseJSON = fmap DirForest . parseJSON
+
+eq1DirForest :: (a -> b -> Bool) -> DirForest a -> DirForest b -> Bool
+eq1DirForest eq (DirForest m1) (DirForest m2) =
+  let l1 = M.toAscList m1
+      l2 = M.toAscList m2
+   in length l1 == length l2 && liftEq (\(p1, a1) (p2, a2) -> p1 == p2 && eq1DirTree eq a1 a2) l1 l2
+
+ord1DirForest :: (a -> b -> Ordering) -> DirForest a -> DirForest b -> Ordering
+ord1DirForest cmp (DirForest m1) (DirForest m2) =
+  let l1 = M.toAscList m1
+      l2 = M.toAscList m2
+   in liftCompare (\(p1, a1) (p2, a2) -> compare p1 p2 <> ord1DirTree cmp a1 a2) l1 l2
 
 -- | File or Dir
 data FOD a

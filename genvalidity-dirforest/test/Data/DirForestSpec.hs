@@ -28,6 +28,10 @@ import Text.Show.Pretty
 
 spec :: Spec
 spec = modifyMaxShrinks (const 1000) $ do
+  eqSpecOnValid @(DirTree Word8)
+  ordSpecOnValid @(DirTree Word8)
+  eqSpecOnValid @(DirForest Word8)
+  ordSpecOnValid @(DirForest Word8)
   genValidSpec @(DirTree Word8)
   jsonSpecOnValid @(DirTree Word8)
   genValidSpec @(DirForest Word8)
