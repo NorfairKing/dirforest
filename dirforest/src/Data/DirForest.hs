@@ -8,6 +8,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | A directory forest of files associated with values
+--
+-- This module is meant to be imported like this:
+--
+-- > import Data.DirForest (DirForest)
+-- > import qualified Data.DirForest as DF
 module Data.DirForest
   ( -- * Dirforest types
     DirTree (..),
