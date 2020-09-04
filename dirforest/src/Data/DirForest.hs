@@ -291,7 +291,7 @@ pruneEmptyDirs (DirForest m) =
       NodeDir df -> NodeDir <$> pruneEmptyDirs df
 
 anyEmptyDir :: DirForest a -> Bool
-anyEmptyDir (DirForest m) = any goTree m
+anyEmptyDir (DirForest m) = M.null m || any goTree m
   where
     goTree :: DirTree a -> Bool
     goTree = \case
