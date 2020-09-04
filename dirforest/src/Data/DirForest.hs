@@ -482,8 +482,8 @@ unionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
     goTree base dt1 dt2 = case (dt1, dt2) of
       (NodeDir df1, NodeDir df2) -> NodeDir <$> goForest base df1 df2
       (NodeFile a1, NodeFile a2) -> NoInsertionErrors $ NodeFile $ func (fromJust $ parseRelFile base) a1 a2
-      (NodeFile _, NodeDir df) -> InsertionErrors $ DirInTheWay (fromJust $ parseRelDir base) df :| []
-      (NodeDir _, NodeFile a) -> InsertionErrors $ FileInTheWay (fromJust $ parseRelFile base) a :| []
+      (NodeFile a, NodeDir _) -> InsertionErrors $ FileInTheWay (fromJust $ parseRelFile base) a :| []
+      (NodeDir df, NodeFile _) -> InsertionErrors $ DirInTheWay (fromJust $ parseRelDir base) df :| []
 
 unions :: [DirForest a] -> Either (InsertionError a) (DirForest a)
 unions = foldM (\df1 df2 -> left NE.head $ unpackInsertValidation $ union df1 df2) empty

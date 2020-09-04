@@ -240,13 +240,14 @@ spec = modifyMaxShrinks (const 1000) $ do
           NoInsertionErrors df' -> NoInsertionErrors df' `shouldBe` DF.union df' df2
     it "behaves the same as M.union" $ viaMap2IfSucceeds @Word8 DF.union M.union
     it "Correctly shows an insertion error" $
+      let df1' = DirForest $ M.fromList [("b", NodeFile 'b')]
+          df1 = DirForest $ M.fromList [("a", NodeDir df1')]
+          df2 = DirForest $ M.fromList [("a", NodeFile 'a')]
+       in DF.union df1 df2 `shouldBe` InsertionErrors (DirInTheWay [reldir|a|] df1' :| [])
+    it "Correctly shows an insertion error the other way around" $
       let df1 = DirForest $ M.fromList [("a", NodeFile 'a')]
           df2' = DirForest $ M.fromList [("b", NodeFile 'b')]
           df2 = DirForest $ M.fromList [("a", NodeDir df2')]
-       in DF.union df1 df2 `shouldBe` InsertionErrors (DirInTheWay [reldir|a|] df2' :| [])
-    it "Correctly shows an insertion error the other way around" $
-      let df1 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 'b')]))]
-          df2 = DirForest $ M.fromList [("a", NodeFile 'a')]
        in DF.union df1 df2 `shouldBe` InsertionErrors (FileInTheWay [relfile|a|] 'a' :| [])
   describe "unions" $ do
     it "produces valid dir forests" $
