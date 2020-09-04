@@ -265,13 +265,13 @@ nullFiles (DirForest df) = all goTree df
       NodeFile _ -> False
       NodeDir df' -> nullFiles df'
 
-singletonFile :: Ord a => Path Rel File -> a -> DirForest a
+singletonFile :: Path Rel File -> a -> DirForest a
 singletonFile rp a =
   case insertFile rp a empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
 
-singletonDir :: Ord a => Path Rel Dir -> DirForest a
+singletonDir :: Path Rel Dir -> DirForest a
 singletonDir rp =
   case insertDir rp empty of
     Right df -> df
@@ -300,7 +300,6 @@ anyEmptyDir (DirForest m) = M.null m || any goTree m
 
 lookup ::
   forall a.
-  Ord a =>
   Path Rel File ->
   DirForest a ->
   Maybe a
@@ -323,7 +322,6 @@ lookup rp df = go df (FP.splitDirectories $ fromRelFile rp)
 
 insertFOD ::
   forall a.
-  Ord a =>
   FilePath ->
   FOD a ->
   DirForest a ->
@@ -378,7 +376,6 @@ insertFOD fp fod dirForest = go [reldir|./|] dirForest (FP.splitDirectories fp)
 
 insertFile ::
   forall a.
-  Ord a =>
   Path Rel File ->
   a ->
   DirForest a ->
@@ -387,16 +384,15 @@ insertFile rp a = insertFOD (fromRelFile rp) (F a)
 
 insertDir ::
   forall a.
-  Ord a =>
   Path Rel Dir ->
   DirForest a ->
   Either (InsertionError a) (DirForest a)
 insertDir rp = insertFOD (FP.dropTrailingPathSeparator $ fromRelDir rp) D
 
-fromFileList :: Ord a => [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
+fromFileList :: [(Path Rel File, a)] -> Either (InsertionError a) (DirForest a)
 fromFileList = foldM (flip $ uncurry insertFile) empty
 
-toFileList :: Ord a => DirForest a -> [(Path Rel File, a)]
+toFileList :: DirForest a -> [(Path Rel File, a)]
 toFileList = M.toList . toFileMap
 
 -- Left-biased
@@ -444,7 +440,7 @@ intersectionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anythi
 intersections :: [DirForest a] -> DirForest a
 intersections = foldl' intersection empty
 
-filter :: Show a => (a -> Bool) -> DirForest a -> DirForest a
+filter :: (a -> Bool) -> DirForest a -> DirForest a
 filter func = filterWithKey (const func)
 
 filterWithKey :: forall a. (Path Rel File -> a -> Bool) -> DirForest a -> DirForest a
@@ -502,7 +498,7 @@ data InsertionError a
 
 instance (Validity a, Ord a) => Validity (InsertionError a)
 
-fromFileMap :: Ord a => Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
+fromFileMap :: Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
 fromFileMap = foldM (\df (rf, cts) -> insertFile rf cts df) empty . M.toList
 
 toFileMap :: DirForest a -> Map (Path Rel File) a
@@ -518,7 +514,7 @@ toFileMap = M.foldlWithKey go M.empty . unDirForest
           let rd = fromJust (parseRelDir path) -- Cannot fail if the original dirforest is valid
            in M.union m $ M.mapKeys (rd </>) (toFileMap df)
 
-fromMap :: Ord a => Map FilePath (FOD a) -> Either (InsertionError a) (DirForest a)
+fromMap :: Map FilePath (FOD a) -> Either (InsertionError a) (DirForest a)
 fromMap = foldM (\df (rf, fod) -> insertFOD rf fod df) empty . M.toList
 
 toMap :: DirForest a -> Map FilePath (FOD a)
@@ -534,7 +530,7 @@ toMap = M.foldlWithKey go M.empty . unDirForest
 
 read ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
@@ -542,7 +538,7 @@ read = readFiltered (const True) (const True)
 
 readNonHidden ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
@@ -550,7 +546,7 @@ readNonHidden = readNonHiddenFiltered (const True) (const True)
 
 readNonHiddenFiltered ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   (Path b File -> Bool) ->
   (Path b Dir -> Bool) ->
   Path b Dir ->
@@ -564,7 +560,7 @@ readNonHiddenFiltered filePred dirPred root = readFiltered (\f -> go f && filePr
 
 readFiltered ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   (Path b File -> Bool) ->
   (Path b Dir -> Bool) ->
   Path b Dir ->
@@ -610,7 +606,7 @@ readFiltered filePred dirPred root readFunc = do
 
 readOneLevel ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
@@ -618,7 +614,7 @@ readOneLevel = readOneLevelFiltered (const True) (const True)
 
 readOneLevelNonHidden ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   Path b Dir ->
   (Path b File -> m a) ->
   m (DirForest a)
@@ -626,7 +622,7 @@ readOneLevelNonHidden = readOneLevelNonHiddenFiltered (const True) (const True)
 
 readOneLevelNonHiddenFiltered ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   (Path b File -> Bool) ->
   (Path b Dir -> Bool) ->
   Path b Dir ->
@@ -640,7 +636,7 @@ readOneLevelNonHiddenFiltered filePred dirPred root = readOneLevelFiltered (\f -
 
 readOneLevelFiltered ::
   forall a b m.
-  (Show a, Ord a, MonadIO m) =>
+  (MonadIO m) =>
   (Path b File -> Bool) ->
   (Path b Dir -> Bool) ->
   Path b Dir ->
