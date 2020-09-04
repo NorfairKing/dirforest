@@ -79,6 +79,8 @@ module Data.DirForest
     -- * Combinations
 
     -- ** Union
+    InsertValidation (..),
+    unpackInsertValidation,
     union,
     unionWith,
     unionWithKey,
@@ -102,6 +104,7 @@ module Data.DirForest
 where
 
 import Control.Applicative ((<|>))
+import Control.Arrow (left)
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
@@ -109,6 +112,8 @@ import Data.Aeson
 import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (foldl')
+import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
@@ -129,7 +134,7 @@ data DirTree a
   | NodeDir (DirForest a)
   deriving (Show, Generic, Functor)
 
-instance (Validity a, Ord a) => Validity (DirTree a)
+instance (Validity a) => Validity (DirTree a)
 
 instance Eq a => Eq (DirTree a) where
   (==) = eq1DirTree (==)
@@ -184,7 +189,7 @@ newtype DirForest a
       }
   deriving (Show, Generic, Functor)
 
-instance (Validity a, Ord a) => Validity (DirForest a) where
+instance (Validity a) => Validity (DirForest a) where
   validate df@(DirForest m) =
     mconcat
       [ genericValidate df,
@@ -221,13 +226,6 @@ instance Ord1 DirForest where
   liftCompare = ord1DirForest
 
 instance NFData a => NFData (DirForest a)
-
-instance Semigroup (DirForest a) where
-  (<>) = union
-
-instance Monoid (DirForest a) where
-  mempty = empty
-  mappend = (<>)
 
 instance Foldable DirForest where
   foldMap func (DirForest dtm) = foldMap (foldMap func) dtm
@@ -438,29 +436,57 @@ fromFileList = foldM (flip $ uncurry insertFile) empty
 toFileList :: DirForest a -> [(Path Rel File, a)]
 toFileList = M.toList . toFileMap
 
+data InsertValidation e a = InsertionErrors (NonEmpty (InsertionError e)) | NoInsertionErrors a
+  deriving (Show, Eq, Generic, Functor)
+
+instance (Validity e, Validity a) => Validity (InsertValidation e a)
+
+instance Applicative (InsertValidation e) where
+  pure = NoInsertionErrors
+  InsertionErrors es1 <*> InsertionErrors es2 = InsertionErrors $ es1 <> es2
+  InsertionErrors es <*> NoInsertionErrors _ = InsertionErrors es
+  NoInsertionErrors _ <*> InsertionErrors es = InsertionErrors es
+  NoInsertionErrors f <*> NoInsertionErrors a = NoInsertionErrors $ f a
+
+unpackInsertValidation :: InsertValidation e a -> Either (NonEmpty (InsertionError e)) a
+unpackInsertValidation = \case
+  InsertionErrors es -> Left es
+  NoInsertionErrors r -> Right r
+
 -- Left-biased
-union :: DirForest a -> DirForest a -> DirForest a
+union :: DirForest a -> DirForest a -> InsertValidation a (DirForest a)
 union = unionWith const
 
 -- Left-biased
-unionWith :: (a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+unionWith :: (a -> a -> a) -> DirForest a -> DirForest a -> InsertValidation a (DirForest a)
 unionWith func = unionWithKey (\_ a b -> func a b)
 
--- Left-biased on same paths
--- TODO: maybe we want to make this more general?
-unionWithKey :: forall a. (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> DirForest a
+-- Left-biased
+unionWithKey :: forall a. (Path Rel File -> a -> a -> a) -> DirForest a -> DirForest a -> InsertValidation a (DirForest a)
 unionWithKey func = goForest "" -- Because "" FP.</> "anything" = "anything"
   where
-    goForest :: FilePath -> DirForest a -> DirForest a -> DirForest a
-    goForest base (DirForest dtm1) (DirForest dtm2) = DirForest $ M.unionWithKey (\p m1 m2 -> goTree (base FP.</> p) m1 m2) dtm1 dtm2
-    goTree :: FilePath -> DirTree a -> DirTree a -> DirTree a
+    goForest :: FilePath -> DirForest a -> DirForest a -> InsertValidation a (DirForest a)
+    goForest base (DirForest dtm1) (DirForest dtm2) =
+      DirForest
+        <$> traverse
+          id
+          ( M.unionWithKey
+              ( \p e1 e2 -> case (e1, e2) of
+                  (NoInsertionErrors m1, NoInsertionErrors m2) -> goTree (base FP.</> p) m1 m2
+                  _ -> error "Should not happen because we just M.map-ed only NoInsertionErrors, but it did"
+              )
+              (M.map NoInsertionErrors dtm1)
+              (M.map NoInsertionErrors dtm2)
+          )
+    goTree :: FilePath -> DirTree a -> DirTree a -> InsertValidation a (DirTree a)
     goTree base dt1 dt2 = case (dt1, dt2) of
-      (NodeDir df1, NodeDir df2) -> NodeDir $ goForest base df1 df2
-      (NodeFile a1, NodeFile a2) -> NodeFile $ func (fromJust $ parseRelFile base) a1 a2
-      (l, _) -> l
+      (NodeDir df1, NodeDir df2) -> NodeDir <$> goForest base df1 df2
+      (NodeFile a1, NodeFile a2) -> NoInsertionErrors $ NodeFile $ func (fromJust $ parseRelFile base) a1 a2
+      (NodeFile _, NodeDir df) -> InsertionErrors $ DirInTheWay (fromJust $ parseRelDir base) df :| []
+      (NodeDir _, NodeFile a) -> InsertionErrors $ FileInTheWay (fromJust $ parseRelFile base) a :| []
 
-unions :: [DirForest a] -> DirForest a
-unions = foldl' union empty
+unions :: [DirForest a] -> Either (InsertionError a) (DirForest a)
+unions = foldM (\df1 df2 -> left NE.head $ unpackInsertValidation $ union df1 df2) empty
 
 intersection :: DirForest a -> DirForest b -> DirForest a
 intersection = intersectionWith const
@@ -539,7 +565,7 @@ data InsertionError a
   | DirInTheWay (Path Rel Dir) (DirForest a)
   deriving (Show, Eq, Ord, Generic)
 
-instance (Validity a, Ord a) => Validity (InsertionError a)
+instance (Validity a) => Validity (InsertionError a)
 
 fromFileMap :: Map (Path Rel File) a -> Either (InsertionError a) (DirForest a)
 fromFileMap = foldM (\df (rf, cts) -> insertFile rf cts df) empty . M.toList
@@ -612,17 +638,21 @@ readFiltered ::
 readFiltered filePred dirPred root readFunc = do
   e <- doesDirExist root
   if e
-    then walkDirAccumRel (Just decendHandler) outputWriter root
+    then do
+      fs <- walkDirAccumRel (Just decendHandler) outputWriter root
+      case unions fs of
+        Left _ -> error "There can't have been any intra-dir collisions, but there were."
+        Right r -> pure r
     else pure empty
   where
     decendHandler :: Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel)
     decendHandler subdir dirs _ = do
       let toExclude = Prelude.filter (not . dirPred . ((root </> subdir) </>)) dirs
       pure $ WalkExclude toExclude
-    outputWriter :: Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (DirForest a)
+    outputWriter :: Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m [DirForest a]
     outputWriter subdir dirs files = do
       df1 <- foldM goDir empty dirs
-      foldM goFile df1 files
+      (: []) <$> foldM goFile df1 files
       where
         goDir :: DirForest a -> Path Rel Dir -> m (DirForest a)
         goDir df p =

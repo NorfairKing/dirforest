@@ -8,12 +8,14 @@ module Data.DirForestSpec where
 
 import Control.Monad
 import qualified Data.ByteString as SB
-import Data.DirForest (DirForest (..), DirTree (..), FOD (..), InsertionError (..))
+import Data.DirForest (DirForest (..), DirTree (..), FOD (..), InsertValidation (..), InsertionError (..))
 import qualified Data.DirForest as DF
+import Data.Either
 import Data.Functor.Identity
 import Data.GenValidity.ByteString ()
 import Data.GenValidity.DirForest
 import Data.List (foldl')
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as M
 import Data.Map (Map)
 import Data.Word
@@ -37,7 +39,6 @@ spec = modifyMaxShrinks (const 1000) $ do
   jsonSpecOnValid @(DirTree Word8)
   genValidSpec @(DirForest Word8)
   jsonSpecOnValid @(DirForest Word8)
-  monoidSpecOnValid @(DirForest Word8)
   describe "empty" $ do
     it "is valid" $ shouldBeValid (DF.empty @Word8)
     it "behaves the same as M.empty" $ DF.toFileMap @Word8 DF.empty `shouldBe` M.empty
@@ -209,36 +210,51 @@ spec = modifyMaxShrinks (const 1000) $ do
     it "behaves the same as M.fromList if it succeeds" $ forAllValid $ \l -> case DF.fromFileList @Word8 l of
       Left _ -> pure () -- Fine.
       Right df -> DF.toFileMap df `shouldBe` M.fromList l
-  describe "union" $
-    do
-      it
-        "produces valid dir forests"
-        $ producesValidsOnValids2
-          (DF.union @Word8)
-      it "is associative" $
-        associativeOnValids (DF.union @Word8)
-      it "is commutative" $
-        commutativeOnValids (DF.union @Word8)
-      it "is idempotent"
-        $ forAllValid
-        $ \dm1 -> forAllValid $ \dm2 ->
-          let res = dm1 `DF.union` dm2
-           in (res `DF.union` dm2) `shouldBe` (res :: DirForest Int)
-      it "behaves the same as M.union" $ viaMap2 @Word8 DF.union M.union
-      it "works for this special case" $
-        let df1 = DirForest $ M.fromList [("a", NodeFile 'a')]
-            df2 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 'b')]))]
-         in DF.union df1 df2 `shouldBe` df1
+  describe "union" $ do
+    it "produces valid dir forests" $
+      producesValidsOnValids2
+        (DF.union @Word8)
+    it "is associative if it succeeds" $ forAllValid $ \df1 ->
+      forAllValid $ \df2 ->
+        forAllValid $ \df3 ->
+          let el = do
+                df12 <- DF.unpackInsertValidation $ DF.union (df1 :: DirForest Word8) df2
+                DF.unpackInsertValidation $ DF.union df12 df3
+              er = do
+                df23 <- DF.unpackInsertValidation $ DF.union df2 df3
+                DF.unpackInsertValidation $ DF.union df1 df23
+           in case (,) <$> el <*> er of
+                Left _ -> pure ()
+                Right (l, r) -> l `shouldBe` r
+    it "is commutative if it succeeds" $ forAllValid $ \df1 ->
+      forAllValid $ \df2 ->
+        let r12 = DF.union (df1 :: DirForest Word8) df2
+            r21 = DF.union df2 df1
+         in case (,) <$> r12 <*> r21 of
+              InsertionErrors _ -> pure ()
+              NoInsertionErrors (d1, d2) -> d1 `shouldBe` d2
+    it "is idempotent if it succeeds" $ forAllValid $ \df1 ->
+      forAllValid $ \df2 ->
+        case (df1 :: DirForest Word8) `DF.union` df2 of
+          InsertionErrors _ -> pure ()
+          NoInsertionErrors df' -> NoInsertionErrors df' `shouldBe` DF.union df' df2
+    it "behaves the same as M.union" $ viaMap2IfSucceeds @Word8 DF.union M.union
+    it "Correctly shows an insertion error" $
+      let df1 = DirForest $ M.fromList [("a", NodeFile 'a')]
+          df2' = DirForest $ M.fromList [("b", NodeFile 'b')]
+          df2 = DirForest $ M.fromList [("a", NodeDir df2')]
+       in DF.union df1 df2 `shouldBe` InsertionErrors (DirInTheWay [reldir|a|] df2' :| [])
+    it "Correctly shows an insertion error the other way around" $
+      let df1 = DirForest $ M.fromList [("a", NodeDir (DirForest $ M.fromList [("b", NodeFile 'b')]))]
+          df2 = DirForest $ M.fromList [("a", NodeFile 'a')]
+       in DF.union df1 df2 `shouldBe` InsertionErrors (FileInTheWay [relfile|a|] 'a' :| [])
   describe "unions" $ do
-    it
-      "produces valid dir forests"
-      $ producesValidsOnValids
-        (DF.unions @Word8)
-    it "behaves the same as M.unions" $ viaMapL @Word8 DF.unions M.unions
+    it "produces valid dir forests" $
+      producesValidsOnValids (DF.unions @Word8)
+    it "behaves the same as M.unions" $ viaMapLIfSucceeds @Word8 DF.unions M.unions
   describe "intersection" $ do
-    it
-      "produces valid dir forests"
-      $ producesValidsOnValids2
+    it "produces valid dir forests" $
+      producesValidsOnValids2
         (DF.intersection @Word8 @Word8)
     it "is associative" $
       associativeOnValids (DF.intersection @Word8 @Word8)
@@ -396,6 +412,14 @@ viaMap2 :: (Show a, Ord a, GenValid a) => (DirForest a -> DirForest a -> DirFore
 viaMap2 dfFunc mFunc =
   forAllValid $ \df1 -> forAllValid $ \df2 -> DF.toMap (dfFunc df1 df2) `shouldBe` mFunc (DF.toMap df1) (DF.toMap df2)
 
+viaMap2IfSucceeds :: (Show a, Ord a, GenValid a) => (DirForest a -> DirForest a -> InsertValidation a (DirForest a)) -> (Map FilePath (FOD a) -> Map FilePath (FOD a) -> Map FilePath (FOD a)) -> Property
+viaMap2IfSucceeds dfFunc mFunc =
+  forAllValid $ \df1 -> forAllValid $ \df2 ->
+    let errOrR = DF.unpackInsertValidation $ dfFunc df1 df2
+     in checkCoverage $ cover 10 (isRight errOrR) "Succeeded" $ case errOrR of
+          Left _ -> pure ()
+          Right r -> DF.toMap r `shouldBe` mFunc (DF.toMap df1) (DF.toMap df2)
+
 viaMapL :: (Show a, Ord a, GenValid a) => ([DirForest a] -> DirForest a) -> ([Map FilePath (FOD a)] -> Map FilePath (FOD a)) -> Property
 viaMapL dfFunc mFunc = forAllValid $ \dfs ->
   let expected = DF.toMap $ dfFunc dfs
@@ -409,3 +433,21 @@ viaMapL dfFunc mFunc = forAllValid $ \dfs ->
             "actual: ",
             ppShow actual
           ]
+
+viaMapLIfSucceeds :: (Show a, Ord a, GenValid a) => ([DirForest a] -> Either e (DirForest a)) -> ([Map FilePath (FOD a)] -> Map FilePath (FOD a)) -> Property
+viaMapLIfSucceeds dfFunc mFunc = forAllValid $ \dfs ->
+  let errOrR = dfFunc dfs
+   in checkCoverage $ cover 10 (isRight errOrR) "Succeeded" $ case errOrR of
+        Left _ -> pure ()
+        Right r ->
+          let expected = DF.toMap r
+              actual = mFunc (map DF.toMap dfs)
+           in unless (expected == actual) $ expectationFailure $
+                unlines
+                  [ "input: ",
+                    ppShow dfs,
+                    "expected: ",
+                    ppShow expected,
+                    "actual: ",
+                    ppShow actual
+                  ]
