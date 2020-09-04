@@ -10,6 +10,7 @@ import Control.Monad
 import qualified Data.ByteString as SB
 import Data.DirForest (DirForest (..), DirTree (..), FOD (..), InsertionError (..))
 import qualified Data.DirForest as DF
+import Data.Functor.Identity
 import Data.GenValidity.ByteString ()
 import Data.GenValidity.DirForest
 import Data.List (foldl')
@@ -57,6 +58,36 @@ spec = modifyMaxShrinks (const 1000) $ do
     it "produces valid forests" $
       producesValidsOnValids (DF.singletonDir @Word8)
     it "behaves the same as M.singletonDir" $ forAllValid $ \rd -> DF.toMap (DF.singletonDir @Word8 rd) `shouldBe` M.singleton (FP.dropTrailingPathSeparator $ fromRelDir rd) D
+  describe "mapWithPath" $ do
+    it "behaves the same as M.mapWithKey for increments" $ forAllValid $ \df ->
+      let incFod = const $ \case
+            F i -> F (i + 1 :: Word8)
+            D -> D
+          inc1 = const (+ 1)
+       in Right (DF.mapWithPath inc1 df) `shouldBe` DF.fromMap (M.mapWithKey incFod (DF.toMap df))
+    it "behaves the same as M.mapWithKey for the function that takes the path" $ forAllValid $ \df ->
+      let pathFodF p = \case
+            F _ -> F p
+            D -> D
+          pathF p _ = toFilePath p
+       in Right (DF.mapWithPath pathF (df :: DirForest Word8)) `shouldBe` DF.fromMap (M.mapWithKey pathFodF (DF.toMap df))
+  describe "traverseWithPath" $ do
+    it "behaves the same as M.traverseWithKey for increments" $ forAllValid $ \df ->
+      let incFod _ x =
+            Identity $
+              case x of
+                F i -> F (i + 1 :: Word8)
+                D -> D
+          inc1 _ x = Identity $ x + 1
+       in Right <$> DF.traverseWithPath inc1 df `shouldBe` (DF.fromMap <$> M.traverseWithKey incFod (DF.toMap df))
+    it "behaves the same as M.traverseWithKey for for the function that takes the path" $ forAllValid $ \df ->
+      let incFod p x =
+            Identity $
+              case x of
+                F _ -> F p
+                D -> D
+          inc1 p _ = Identity $ fromRelFile p
+       in Right <$> DF.traverseWithPath inc1 (df :: DirForest Word8) `shouldBe` (DF.fromMap <$> M.traverseWithKey incFod (DF.toMap df))
   describe "pruneEmptyDirectories" $ do
     it "produces valid forests" $
       producesValidsOnValids (DF.pruneEmptyDirs @Word8)

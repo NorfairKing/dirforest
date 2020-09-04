@@ -33,6 +33,11 @@ module Data.DirForest
     insertFile,
     insertDir,
 
+    -- * Traversal
+    mapWithPath,
+    traverseWithPath,
+    traverseWithPath_,
+
     -- * Pruning
     pruneEmptyDirs,
     anyEmptyDir,
@@ -96,6 +101,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Functor.Classes
+import Data.Functor.Identity
 import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -276,6 +282,37 @@ singletonDir rp =
   case insertDir rp empty of
     Right df -> df
     _ -> error "There can't have been anything in the way in an empty dir forest."
+
+mapWithPath :: (Path Rel File -> a -> b) -> DirForest a -> DirForest b
+mapWithPath func df = runIdentity $ traverseWithPath (\a b -> Identity $ func a b) df
+
+traverseWithPath :: forall a b f. Applicative f => (Path Rel File -> a -> f b) -> DirForest a -> f (DirForest b)
+traverseWithPath func = goF [reldir|./|]
+  where
+    goF :: Path Rel Dir -> DirForest a -> f (DirForest b)
+    goF cur (DirForest ts) = DirForest <$> M.traverseWithKey (goT cur) ts
+    goT :: Path Rel Dir -> FilePath -> DirTree a -> f (DirTree b)
+    goT cur fp = \case
+      NodeFile v ->
+        let rf = cur </> fromJust (parseRelFile fp)
+         in NodeFile <$> func rf v
+      NodeDir df ->
+        let rd = cur </> fromJust (parseRelDir fp)
+         in NodeDir <$> goF rd df
+
+traverseWithPath_ :: forall a b f. Applicative f => (Path Rel File -> a -> f b) -> DirForest a -> f ()
+traverseWithPath_ func = goF [reldir|./|]
+  where
+    goF :: Path Rel Dir -> DirForest a -> f ()
+    goF cur (DirForest ts) = void $ M.traverseWithKey (goT cur) ts
+    goT :: Path Rel Dir -> FilePath -> DirTree a -> f ()
+    goT cur fp = \case
+      NodeFile v ->
+        let rf = cur </> fromJust (parseRelFile fp)
+         in void $ func rf v
+      NodeDir df ->
+        let rd = cur </> fromJust (parseRelDir fp)
+         in goF rd df
 
 -- | Remove all empty directories from a 'DirForest'
 --
