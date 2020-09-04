@@ -5,8 +5,10 @@ with final.haskell.lib;
   dirforestPackages =
     {
       dirforest =
-        failOnAllWarnings (
-          final.haskellPackages.callCabal2nix "dirforest" (final.gitignoreSource ../dirforest) {}
+        doHaddock (
+          failOnAllWarnings (
+            final.haskellPackages.callCabal2nix "dirforest" (final.gitignoreSource ../dirforest) {}
+          )
         );
       genvalidity-dirforest =
         doBenchmark (
