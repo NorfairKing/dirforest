@@ -99,6 +99,7 @@ module Data.DirForest
 
     -- * Filter
     filter,
+    filterWithKey,
     filterHidden,
   )
 where
@@ -112,8 +113,8 @@ import Data.Aeson
 import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (foldl')
-import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
@@ -183,10 +184,9 @@ ord1DirTree cmp dt1 dt2 = case (dt1, dt2) of
   (NodeFile _, NodeDir _) -> LT
   (NodeDir _, NodeFile _) -> GT
 
-newtype DirForest a
-  = DirForest
-      { unDirForest :: Map FilePath (DirTree a)
-      }
+newtype DirForest a = DirForest
+  { unDirForest :: Map FilePath (DirTree a)
+  }
   deriving (Show, Generic, Functor)
 
 instance (Validity a) => Validity (DirForest a) where
@@ -205,9 +205,9 @@ instance (Validity a) => Validity (DirForest a) where
                 NodeDir (DirForest _) ->
                   let rd = Path (FP.addTrailingPathSeparator p) :: Path Rel Dir
                    in mconcat
-                        [ declare "the path has no trailing path separator"
-                            $ not
-                            $ FP.hasTrailingPathSeparator p,
+                        [ declare "the path has no trailing path separator" $
+                            not $
+                              FP.hasTrailingPathSeparator p,
                           declare "There are no separators on this level" $ isTopLevel rd, -- We need this for equality with the files.
                           validate rd
                         ]
