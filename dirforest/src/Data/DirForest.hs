@@ -184,9 +184,10 @@ ord1DirTree cmp dt1 dt2 = case (dt1, dt2) of
   (NodeFile _, NodeDir _) -> LT
   (NodeDir _, NodeFile _) -> GT
 
-newtype DirForest a = DirForest
-  { unDirForest :: Map FilePath (DirTree a)
-  }
+newtype DirForest a
+  = DirForest
+      { unDirForest :: Map FilePath (DirTree a)
+      }
   deriving (Show, Generic, Functor)
 
 instance (Validity a) => Validity (DirForest a) where
@@ -205,9 +206,9 @@ instance (Validity a) => Validity (DirForest a) where
                 NodeDir (DirForest _) ->
                   let rd = Path (FP.addTrailingPathSeparator p) :: Path Rel Dir
                    in mconcat
-                        [ declare "the path has no trailing path separator" $
-                            not $
-                              FP.hasTrailingPathSeparator p,
+                        [ declare "the path has no trailing path separator"
+                            $ not
+                            $ FP.hasTrailingPathSeparator p,
                           declare "There are no separators on this level" $ isTopLevel rd, -- We need this for equality with the files.
                           validate rd
                         ]

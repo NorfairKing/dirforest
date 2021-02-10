@@ -13,3 +13,4 @@ jobs:
         name: dirforest
         extraPullNames: validity
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - run: nix-build
