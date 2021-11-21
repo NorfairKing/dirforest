@@ -1,19 +1,21 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fd70007db0faebc68f387694dcedfe6a310d505c35daf4b0aec7171f0dc22a60
+-- hash: 411f3bc0bcadeb866446ac381d3a7a1e383cfb15cd3e3cb35ff447373e6c9fff
 
 name:           genvalidity-dirforest
-version:        0.0.0.0
+version:        0.1.0.0
 homepage:       https://github.com/NorfairKing/dirforest#readme
 bug-reports:    https://github.com/NorfairKing/dirforest/issues
 author:         Tom Sydney Kerckhove
 maintainer:     syd@cs-ysd.eu
-copyright:      2020 Tom Sydney Kerckhove
+copyright:      2020-2021 Tom Sydney Kerckhove
 build-type:     Simple
+extra-source-files:
+    CHANGELOG.md
 
 source-repository head
   type: git
@@ -32,7 +34,7 @@ library
     , containers
     , dirforest
     , filepath
-    , genvalidity
+    , genvalidity >=1.0.0.0
     , genvalidity-containers
     , genvalidity-path
     , path

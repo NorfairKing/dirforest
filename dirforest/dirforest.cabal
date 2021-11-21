@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 36859b62185be5142daf8c41cc10084053328e17b2462db566e9d7b10a7cf7b4
+-- hash: 4b2eb2d93afef4caaa84dc8990f308e9c5794eb9441a9588aed583cbdf26a1b3
 
 name:           dirforest
 version:        0.0.0.0
@@ -12,7 +12,7 @@ homepage:       https://github.com/NorfairKing/dirforest#readme
 bug-reports:    https://github.com/NorfairKing/dirforest/issues
 author:         Tom Sydney Kerckhove
 maintainer:     syd@cs-syd.eu
-copyright:      2020 Tom Sydney Kerckhove
+copyright:      2020-2021 Tom Sydney Kerckhove
 build-type:     Simple
 
 source-repository head

@@ -1,10 +1,12 @@
 name:                genvalidity-dirforest
-version:             0.0.0.0
+version:             0.1.0.0
 github:              "NorfairKing/dirforest"
 author:              "Tom Sydney Kerckhove"
 maintainer:          "syd@cs-ysd.eu"
-copyright:           "2020 Tom Sydney Kerckhove"
+copyright:           "2020-2021 Tom Sydney Kerckhove"
 
+extra-source-files:
+- CHANGELOG.md
 
 dependencies:
 - base >= 4.7 && < 5
@@ -16,7 +18,7 @@ library:
   - containers
   - dirforest
   - filepath
-  - genvalidity
+  - genvalidity >=1.0.0.0
   - genvalidity-containers
   - genvalidity-path
   - path
