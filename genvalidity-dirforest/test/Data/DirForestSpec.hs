@@ -396,7 +396,7 @@ spec = modifyMaxShrinks (const 1000) $ do
           forAllValid $
             \dirForest -> do
               tdirDeleted <- withSystemTempDir "dirforest-test" pure
-              DF.write tdirDeleted dirForest (\p contents -> SB.writeFile (fromAbsFile p) contents)
+              DF.write tdirDeleted dirForest (SB.writeFile . fromAbsFile)
 
 viaMap :: (Show a, Ord a, GenValid a) => (DirForest a -> DirForest a) -> (Map FilePath (FOD a) -> Map FilePath (FOD a)) -> Property
 viaMap dfFunc mFunc =
