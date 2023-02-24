@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b2eb2d93afef4caaa84dc8990f308e9c5794eb9441a9588aed583cbdf26a1b3
+-- hash: 7a5cbdcc9e7ae92cc4a4698890f22239ac345b84cc923a3e31d4c2a68cf75083
 
 name:           dirforest
 version:        0.0.0.0
@@ -28,6 +28,7 @@ library
       src
   build-depends:
       aeson
+    , autodocodec
     , base >=4.7 && <5
     , containers
     , deepseq

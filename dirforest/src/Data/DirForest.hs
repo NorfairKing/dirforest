@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -104,12 +105,12 @@ module Data.DirForest
   )
 where
 
-import Control.Applicative ((<|>))
+import Autodocodec
 import Control.Arrow (left)
 import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (foldl')
@@ -133,7 +134,8 @@ import qualified Prelude
 data DirTree a
   = NodeFile a
   | NodeDir (DirForest a)
-  deriving (Show, Generic, Functor)
+  deriving stock (Show, Generic, Functor)
+  deriving (FromJSON, ToJSON) via (Autodocodec (DirTree a))
 
 instance (Validity a) => Validity (DirTree a)
 
@@ -163,13 +165,15 @@ instance Traversable DirTree where
       NodeFile v -> NodeFile <$> func v
       NodeDir df -> NodeDir <$> traverse func df
 
-instance FromJSON a => FromJSON (DirTree a) where
-  parseJSON v = NodeFile <$> parseJSON v <|> NodeDir <$> parseJSON v
-
-instance ToJSON a => ToJSON (DirTree a) where
-  toJSON = \case
-    NodeFile v -> toJSON v
-    NodeDir df -> toJSON df
+instance HasCodec a => HasCodec (DirTree a) where
+  codec = named "DirTree" $ dimapCodec f g $ eitherCodec codec codec
+    where
+      f = \case
+        Left a -> NodeFile a
+        Right b -> NodeDir b
+      g = \case
+        NodeFile a -> Left a
+        NodeDir b -> Right b
 
 eq1DirTree :: (a -> b -> Bool) -> DirTree a -> DirTree b -> Bool
 eq1DirTree eq dt1 dt2 = case (dt1, dt2) of
@@ -187,7 +191,8 @@ ord1DirTree cmp dt1 dt2 = case (dt1, dt2) of
 newtype DirForest a = DirForest
   { unDirForest :: Map FilePath (DirTree a)
   }
-  deriving (Show, Generic, Functor)
+  deriving stock (Show, Generic, Functor)
+  deriving (FromJSON, ToJSON) via (DirForest a)
 
 instance (Validity a) => Validity (DirForest a) where
   validate df@(DirForest m) =
@@ -233,11 +238,8 @@ instance Foldable DirForest where
 instance Traversable DirForest where
   traverse func (DirForest dtm) = DirForest <$> traverse (traverse func) dtm
 
-instance ToJSON a => ToJSON (DirForest a) where
-  toJSON = toJSON . unDirForest
-
-instance FromJSON a => FromJSON (DirForest a) where
-  parseJSON = fmap DirForest . parseJSON
+instance HasCodec a => HasCodec (DirForest a) where
+  codec = named "DirForest" $ dimapCodec DirForest unDirForest codec
 
 eq1DirForest :: (a -> b -> Bool) -> DirForest a -> DirForest b -> Bool
 eq1DirForest eq (DirForest m1) (DirForest m2) =

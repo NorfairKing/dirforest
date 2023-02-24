@@ -12,6 +12,7 @@ library:
   source-dirs: src
   dependencies:
   - aeson
+  - autodocodec
   - containers
   - deepseq
   - filepath
