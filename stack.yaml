@@ -62,12 +62,6 @@ extra-deps:
     - genvalidity-uuid
     - genvalidity-vector
 
-  - github: NorfairKing/dirforest
-    commit: f19ac7dd946f0141d34a42f7346aa5487f0395a0
-    subdirs:
-    - sydtest
-    - sydtest-discover
-
 system-ghc: true
 nix:
   enable: false
