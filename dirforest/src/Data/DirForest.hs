@@ -166,7 +166,12 @@ instance Traversable DirTree where
       NodeDir df -> NodeDir <$> traverse func df
 
 instance HasCodec a => HasCodec (DirTree a) where
-  codec = named "DirTree" $ dimapCodec f g $ eitherCodec codec codec
+  codec =
+    named "DirTree" $
+      dimapCodec f g $
+        eitherCodec
+          (codec :: JSONCodec a)
+          (codec :: JSONCodec (DirForest a))
     where
       f = \case
         Left a -> NodeFile a
@@ -192,7 +197,7 @@ newtype DirForest a = DirForest
   { unDirForest :: Map FilePath (DirTree a)
   }
   deriving stock (Show, Generic, Functor)
-  deriving (FromJSON, ToJSON) via (DirForest a)
+  deriving (FromJSON, ToJSON) via (Autodocodec (DirForest a))
 
 instance (Validity a) => Validity (DirForest a) where
   validate df@(DirForest m) =
@@ -239,7 +244,12 @@ instance Traversable DirForest where
   traverse func (DirForest dtm) = DirForest <$> traverse (traverse func) dtm
 
 instance HasCodec a => HasCodec (DirForest a) where
-  codec = named "DirForest" $ dimapCodec DirForest unDirForest codec
+  codec =
+    named "DirForest" $
+      dimapCodec
+        DirForest
+        unDirForest
+        (codec :: JSONCodec (Map FilePath (DirTree a)))
 
 eq1DirForest :: (a -> b -> Bool) -> DirForest a -> DirForest b -> Bool
 eq1DirForest eq (DirForest m1) (DirForest m2) =

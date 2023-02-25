@@ -21,11 +21,7 @@ instance (Ord a, GenValid a) => GenValid (DirForest a) where
   genValid = genDirForestOf genValid
 
 instance (Ord a, GenValid a) => GenValid (DirTree a) where
-  genValid = sized $ \s ->
-    oneof
-      [ NodeFile <$> resize (max 0 $ s - 1) genValid,
-        NodeDir <$> resize (max 0 $ s - 1) genValid
-      ]
+  genValid = genDirTreeOf genValid
   shrinkValid = shrinkValidStructurallyWithoutExtraFiltering
 
 genDirForestOf :: Ord a => Gen a -> Gen (DirForest a)
@@ -34,9 +30,21 @@ genDirForestOf gen = DirForest . M.fromList <$> genListOf genPathValuePair
     genPathValuePair = sized $ \s -> do
       (a, b) <- genSplit s
       oneof
-        [ (,) <$> resize a (fromRelFile <$> genValid) <*> resize b (NodeFile <$> gen),
-          (,) <$> resize a (FP.dropTrailingPathSeparator . fromRelDir <$> genValid) <*> resize b (NodeDir <$> genDirForestOf gen)
+        [ (,)
+            <$> resize a (fromRelFile <$> genValid)
+            <*> resize b (NodeFile <$> gen),
+          (,)
+            <$> resize a (FP.dropTrailingPathSeparator . fromRelDir <$> genValid)
+            <*> resize b (NodeDir <$> genDirForestOf gen)
         ]
+
+genDirTreeOf :: Ord a => Gen a -> Gen (DirTree a)
+genDirTreeOf gen =
+  sized $ \s ->
+    oneof
+      [ NodeFile <$> resize (max 0 $ s - 1) gen,
+        NodeDir <$> resize (max 0 $ s - 1) (genDirForestOf gen)
+      ]
 
 changedDirForest :: (Ord a, GenValid a) => DirForest a -> Gen (DirForest a)
 changedDirForest = traverse (\v -> genValid `suchThat` (/= v))

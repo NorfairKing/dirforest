@@ -6,26 +6,26 @@ ghc-options:
   "$locals": -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Widentities -Wredundant-constraints -Wcpp-undef -Wcompat
 extra-deps:
   - github: NorfairKing/autodocodec
-    commit: a9b11fc5bba4c8de951eedf2b6308d6bec02dd0e
+    commit: dde958c53fffe86f0c43dc1c530df3cf73361d6a
     subdirs:
     - autodocodec
     - autodocodec-schema
     - autodocodec-yaml
 
   - github: NorfairKing/safe-coloured-text
-    commit: 675cb01fce5f46718416d7746de5b856ed90a63f
+    commit: f18578151d579c495eda46b8eeafcddb69adea07
     subdirs:
     - safe-coloured-text
     - safe-coloured-text-terminfo
 
   - github: NorfairKing/sydtest
-    commit: cf1bb414f0c0ce7bbf64659da94b8cd890c9e536
+    commit: 2375dbc3b8cc34788dca2baea779f148c173f5b0
     subdirs:
     - sydtest
     - sydtest-discover
 
   - github: NorfairKing/validity
-    commit: d88be911a7e2a84f6c089e9269aaed8d10a74acd
+    commit: a251897dc1eb7e851fd4d3dbc6fa976d22388f27
     subdirs:
     - validity
     - validity-aeson

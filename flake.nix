@@ -8,8 +8,14 @@
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-22.11";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
-    validity.url = "github:NorfairKing/validity?ref=flake";
+    validity.url = "github:NorfairKing/validity";
     validity.flake = false;
+    autodocodec.url = "github:NorfairKing/autodocodec";
+    autodocodec.flake = false;
+    safe-coloured-text.url = "github:NorfairKing/safe-coloured-text";
+    safe-coloured-text.flake = false;
+    sydtest.url = "github:NorfairKing/sydtest";
+    sydtest.flake = false;
     nixpkgs-22_05.url = "github:NixOS/nixpkgs?ref=nixos-22.05";
     nixpkgs-21_11.url = "github:NixOS/nixpkgs?ref=nixos-21.11";
     nixpkgs-21_05.url = "github:NixOS/nixpkgs?ref=nixos-21.05";
@@ -24,6 +30,9 @@
     , flake-utils
     , pre-commit-hooks
     , validity
+    , autodocodec
+    , safe-coloured-text
+    , sydtest
     }:
     flake-utils.lib.eachSystem [ "x86_64-linux" ]
       (system:
@@ -33,6 +42,9 @@
           overlays = [
             self.overlays.${system}
             (import (validity + "/nix/overlay.nix"))
+            (import (autodocodec + "/nix/overlay.nix"))
+            (import (safe-coloured-text + "/nix/overlay.nix"))
+            (import (sydtest + "/nix/overlay.nix"))
           ];
         };
         pkgs = pkgsFor nixpkgs;
@@ -48,8 +60,7 @@
             allNixpkgs = {
               inherit
                 nixpkgs-22_05
-                nixpkgs-21_11
-                nixpkgs-21_05;
+                nixpkgs-21_11;
             };
             backwardCompatibilityChecks = pkgs.lib.mapAttrs (_: nixpkgs: backwardCompatibilityCheckFor nixpkgs) allNixpkgs;
           in

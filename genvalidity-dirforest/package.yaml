@@ -1,9 +1,11 @@
-name:                genvalidity-dirforest
-version:             0.1.0.0
-github:              "NorfairKing/dirforest"
-author:              "Tom Sydney Kerckhove"
-maintainer:          "syd@cs-ysd.eu"
-copyright:           "2020-2021 Tom Sydney Kerckhove"
+name: genvalidity-dirforest
+version: 0.1.0.1
+github: "NorfairKing/dirforest"
+author: "Tom Sydney Kerckhove"
+maintainer: "syd@cs-ysd.eu"
+copyright: "2020-2023 Tom Sydney Kerckhove"
+synopsis: Generators for typed directory forests
+license: MIT
 
 extra-source-files:
 - CHANGELOG.md
@@ -25,8 +27,9 @@ library:
 
 tests:
   dirforest-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
+    build-tools: sydtest-discover
     ghc-options:
     - -threaded
     - -rtsopts
@@ -39,12 +42,11 @@ tests:
     - filepath
     - genvalidity-bytestring
     - genvalidity-dirforest
-    - genvalidity-hspec
-    - genvalidity-hspec-aeson
-    - hspec
+    - genvalidity-sydtest
+    - genvalidity-sydtest-aeson
+    - sydtest
     - path
     - path-io
-    - pretty-show
 
 benchmarks:
   dirforest-bench:
@@ -59,4 +61,3 @@ benchmarks:
     - genvalidity-dirforest
     - genvalidity-criterion
     - genvalidity-text
-    
