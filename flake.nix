@@ -18,7 +18,6 @@
     sydtest.flake = false;
     nixpkgs-22_05.url = "github:NixOS/nixpkgs?ref=nixos-22.05";
     nixpkgs-21_11.url = "github:NixOS/nixpkgs?ref=nixos-21.11";
-    nixpkgs-21_05.url = "github:NixOS/nixpkgs?ref=nixos-21.05";
   };
 
   outputs =
@@ -26,7 +25,6 @@
     , nixpkgs
     , nixpkgs-22_05
     , nixpkgs-21_11
-    , nixpkgs-21_05
     , flake-utils
     , pre-commit-hooks
     , validity
