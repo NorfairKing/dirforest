@@ -47,8 +47,8 @@ spec = modifyMaxShrinks (const 1000) $ do
         (DF.null @Word8)
     it
       "behaves the same as M.null"
-      $ forAllValid $
-        \df -> DF.null @Word8 df `shouldBe` M.null (DF.toMap df)
+      $ forAllValid
+      $ \df -> DF.null @Word8 df `shouldBe` M.null (DF.toMap df)
   describe "singletonFile" $ do
     it "produces valid forests" $
       producesValid2 (DF.singletonFile @Word8)
@@ -107,8 +107,8 @@ spec = modifyMaxShrinks (const 1000) $ do
       producesValid2 (DF.lookup @Word8)
     it
       "behaves the same as M.lookup"
-      $ forAllValid $
-        \rf -> forAllValid $ \df -> DF.lookup @Word8 rf df `shouldBe` M.lookup rf (DF.toFileMap df)
+      $ forAllValid
+      $ \rf -> forAllValid $ \df -> DF.lookup @Word8 rf df `shouldBe` M.lookup rf (DF.toFileMap df)
   describe "insert" $ do
     it "works for this example of a file" $
       forAllValid $
@@ -192,10 +192,10 @@ spec = modifyMaxShrinks (const 1000) $ do
     it "produces valid forests" $ producesValid3 (DF.insertFile @Word8)
     it
       "behaves the same as M.lookup when it works"
-      $ forAllValid $
-        \rf -> forAllValid $ \cts -> forAllValid $ \df -> case DF.insertFile @Word8 rf cts df of
-          Left _ -> pure ()
-          Right df' -> DF.toFileMap df' `shouldBe` M.insert rf cts (DF.toFileMap df)
+      $ forAllValid
+      $ \rf -> forAllValid $ \cts -> forAllValid $ \df -> case DF.insertFile @Word8 rf cts df of
+        Left _ -> pure ()
+        Right df' -> DF.toFileMap df' `shouldBe` M.insert rf cts (DF.toFileMap df)
     it "inserts something that can be found again afterward" $
       forAllValid $
         \dirForest ->
@@ -283,13 +283,17 @@ spec = modifyMaxShrinks (const 1000) $ do
     it "behaves the same as M.intersections" $ viaMapL @Word8 DF.intersections (foldl' M.intersection M.empty)
   describe "filter" $ do
     it "produces valid dir forests for const True" $
-      producesValid $ DF.filter @Word8 (const True)
+      producesValid $
+        DF.filter @Word8 (const True)
     it "produces the same forest for const True" $
-      forAllValid $ \df -> DF.filter @Word8 (const True) df `shouldBe` df
+      forAllValid $
+        \df -> DF.filter @Word8 (const True) df `shouldBe` df
     it "produces valid dir forests for const False" $
-      producesValid $ DF.filter @Word8 (const False)
+      producesValid $
+        DF.filter @Word8 (const False)
     it "produces the empty forest for const False" $
-      forAllValid $ \df -> DF.filter @Word8 (const False) df `shouldSatisfy` DF.nullFiles
+      forAllValid $
+        \df -> DF.filter @Word8 (const False) df `shouldSatisfy` DF.nullFiles
     it "behaves the same as M.filter" $
       forAllValid $ \(w :: Word8) ->
         viaMap
@@ -299,7 +303,8 @@ spec = modifyMaxShrinks (const 1000) $ do
               D -> True
           )
   describe "filter" $
-    it "produces valid dir forests for const True" $ producesValid (DF.filterHidden @Word8)
+    it "produces valid dir forests for const True" $
+      producesValid (DF.filterHidden @Word8)
   describe "difference" $ do
     it "produces valid dir forests" $
       producesValid2 (DF.difference @Word8 @Word8)

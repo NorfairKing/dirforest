@@ -1,4 +1,4 @@
-resolver: lts-19.32
+resolver: lts-20.25
 packages:
 - dirforest
 - genvalidity-dirforest
@@ -6,26 +6,26 @@ ghc-options:
   "$locals": -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Widentities -Wredundant-constraints -Wcpp-undef -Wcompat
 extra-deps:
   - github: NorfairKing/autodocodec
-    commit: dde958c53fffe86f0c43dc1c530df3cf73361d6a
+    commit: f661ec72fd68ef40c1ae8b698e0411989abf8747
     subdirs:
     - autodocodec
     - autodocodec-schema
     - autodocodec-yaml
 
   - github: NorfairKing/safe-coloured-text
-    commit: f18578151d579c495eda46b8eeafcddb69adea07
+    commit: b4fd34585472a8b5aaec942bb1bd0748fa3d5aa0
     subdirs:
     - safe-coloured-text
     - safe-coloured-text-terminfo
 
   - github: NorfairKing/sydtest
-    commit: 2375dbc3b8cc34788dca2baea779f148c173f5b0
+    commit: a3ba5f3096c3dcc58920f61ba8a45191d9020eb4
     subdirs:
     - sydtest
     - sydtest-discover
 
   - github: NorfairKing/validity
-    commit: a251897dc1eb7e851fd4d3dbc6fa976d22388f27
+    commit: 20ddbd625304817694b7ae9dc8751f7456259dd6
     subdirs:
     - validity
     - validity-aeson

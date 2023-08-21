@@ -5,7 +5,7 @@
     extra-trusted-public-keys = "dirforest.cachix.org-1:C/TnLXGIkOL7jrhIZo95ahDttiZIc6XPaMV9xWQJddY=";
   };
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-22.11";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-23.05";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
     validity.url = "github:NorfairKing/validity";
@@ -16,6 +16,7 @@
     safe-coloured-text.flake = false;
     sydtest.url = "github:NorfairKing/sydtest";
     sydtest.flake = false;
+    nixpkgs-22_11.url = "github:NixOS/nixpkgs?ref=nixos-22.11";
     nixpkgs-22_05.url = "github:NixOS/nixpkgs?ref=nixos-22.05";
     nixpkgs-21_11.url = "github:NixOS/nixpkgs?ref=nixos-21.11";
   };
@@ -23,6 +24,7 @@
   outputs =
     { self
     , nixpkgs
+    , nixpkgs-22_11
     , nixpkgs-22_05
     , nixpkgs-21_11
     , flake-utils
@@ -57,6 +59,7 @@
               in pkgs'.dirforestRelease;
             allNixpkgs = {
               inherit
+                nixpkgs-22_11
                 nixpkgs-22_05
                 nixpkgs-21_11;
             };
@@ -84,7 +87,7 @@
             niv
             zlib
             cabal-install
-          ] ++ (with pre-commit-hooks;
+          ] ++ (with pre-commit-hooks.packages.${system};
             [
               hlint
               hpack
