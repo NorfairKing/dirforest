@@ -5,7 +5,11 @@
     extra-trusted-public-keys = "dirforest.cachix.org-1:C/TnLXGIkOL7jrhIZo95ahDttiZIc6XPaMV9xWQJddY=";
   };
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-23.05";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-23.11";
+    nixpkgs-23_05.url = "github:NixOS/nixpkgs?ref=nixos-23.05";
+    nixpkgs-22_11.url = "github:NixOS/nixpkgs?ref=nixos-22.11";
+    nixpkgs-22_05.url = "github:NixOS/nixpkgs?ref=nixos-22.05";
+    nixpkgs-21_11.url = "github:NixOS/nixpkgs?ref=nixos-21.11";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
     validity.url = "github:NorfairKing/validity";
     validity.flake = false;
@@ -13,16 +17,16 @@
     autodocodec.flake = false;
     safe-coloured-text.url = "github:NorfairKing/safe-coloured-text";
     safe-coloured-text.flake = false;
+    fast-myers-diff.url = "github:NorfairKing/fast-myers-diff";
+    fast-myers-diff.flake = false;
     sydtest.url = "github:NorfairKing/sydtest";
     sydtest.flake = false;
-    nixpkgs-22_11.url = "github:NixOS/nixpkgs?ref=nixos-22.11";
-    nixpkgs-22_05.url = "github:NixOS/nixpkgs?ref=nixos-22.05";
-    nixpkgs-21_11.url = "github:NixOS/nixpkgs?ref=nixos-21.11";
   };
 
   outputs =
     { self
     , nixpkgs
+    , nixpkgs-23_05
     , nixpkgs-22_11
     , nixpkgs-22_05
     , nixpkgs-21_11
@@ -30,6 +34,7 @@
     , validity
     , autodocodec
     , safe-coloured-text
+    , fast-myers-diff
     , sydtest
     }:
     let
@@ -41,6 +46,7 @@
           (import (validity + "/nix/overlay.nix"))
           (import (autodocodec + "/nix/overlay.nix"))
           (import (safe-coloured-text + "/nix/overlay.nix"))
+          (import (fast-myers-diff + "/nix/overlay.nix"))
           (import (sydtest + "/nix/overlay.nix"))
         ];
       };
@@ -56,6 +62,7 @@
             in pkgs'.dirforestRelease;
           allNixpkgs = {
             inherit
+              nixpkgs-23_05
               nixpkgs-22_11
               nixpkgs-22_05
               nixpkgs-21_11;
@@ -93,6 +100,10 @@
             cabal2nix
           ]);
         shellHook = self.checks.${system}.pre-commit.shellHook;
+      };
+      nix-ci.cachix = {
+        name = "dirforest";
+        public-key = "dirforest.cachix.org-1:C/TnLXGIkOL7jrhIZo95ahDttiZIc6XPaMV9xWQJddY=";
       };
     };
 }
