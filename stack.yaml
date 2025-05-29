@@ -1,66 +1,9 @@
-resolver: lts-21.22
+resolver: lts-23.19
 packages:
 - dirforest
 - genvalidity-dirforest
 ghc-options:
   "$locals": -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Widentities -Wredundant-constraints -Wcpp-undef -Wcompat
-extra-deps:
-  - github: NorfairKing/autodocodec
-    commit: f661ec72fd68ef40c1ae8b698e0411989abf8747
-    subdirs:
-    - autodocodec
-    - autodocodec-schema
-    - autodocodec-yaml
-
-  - github: NorfairKing/safe-coloured-text
-    commit: b4fd34585472a8b5aaec942bb1bd0748fa3d5aa0
-    subdirs:
-    - safe-coloured-text
-    - safe-coloured-text-terminfo
-
-  - github: NorfairKing/sydtest
-    commit: a3ba5f3096c3dcc58920f61ba8a45191d9020eb4
-    subdirs:
-    - sydtest
-    - sydtest-discover
-
-  - github: NorfairKing/validity
-    commit: 20ddbd625304817694b7ae9dc8751f7456259dd6
-    subdirs:
-    - validity
-    - validity-aeson
-    - validity-bytestring
-    - validity-case-insensitive
-    - validity-containers
-    - validity-path
-    - validity-persistent
-    - validity-primitive
-    - validity-scientific
-    - validity-text
-    - validity-time
-    - validity-unordered-containers
-    - validity-uuid
-    - validity-vector
-    - genvalidity
-    - genvalidity-aeson
-    - genvalidity-bytestring
-    - genvalidity-case-insensitive
-    - genvalidity-containers
-    - genvalidity-criterion
-    - genvalidity-path
-    - genvalidity-persistent
-    - genvalidity-property
-    - genvalidity-scientific
-    - genvalidity-sydtest
-    - genvalidity-sydtest-aeson
-    - genvalidity-sydtest-hashable
-    - genvalidity-sydtest-lens
-    - genvalidity-sydtest-persistent
-    - genvalidity-text
-    - genvalidity-time
-    - genvalidity-unordered-containers
-    - genvalidity-uuid
-    - genvalidity-vector
 
 system-ghc: true
 nix:

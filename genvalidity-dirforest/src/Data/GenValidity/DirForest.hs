@@ -12,7 +12,7 @@ import Path
 import System.FilePath as FP
 import Test.QuickCheck
 
-instance GenValid a => GenValid (FOD a) where
+instance (GenValid a) => GenValid (FOD a) where
   shrinkValid = shrinkValidStructurallyWithoutExtraFiltering
   genValid = genValidStructurallyWithoutExtraChecking
 
@@ -24,7 +24,7 @@ instance (Ord a, GenValid a) => GenValid (DirTree a) where
   genValid = genDirTreeOf genValid
   shrinkValid = shrinkValidStructurallyWithoutExtraFiltering
 
-genDirForestOf :: Ord a => Gen a -> Gen (DirForest a)
+genDirForestOf :: (Ord a) => Gen a -> Gen (DirForest a)
 genDirForestOf gen = DirForest . M.fromList <$> genListOf genPathValuePair
   where
     genPathValuePair = sized $ \s -> do
@@ -38,7 +38,7 @@ genDirForestOf gen = DirForest . M.fromList <$> genListOf genPathValuePair
             <*> resize b (NodeDir <$> genDirForestOf gen)
         ]
 
-genDirTreeOf :: Ord a => Gen a -> Gen (DirTree a)
+genDirTreeOf :: (Ord a) => Gen a -> Gen (DirTree a)
 genDirTreeOf gen =
   sized $ \s ->
     oneof

@@ -139,10 +139,10 @@ data DirTree a
 
 instance (Validity a) => Validity (DirTree a)
 
-instance Eq a => Eq (DirTree a) where
+instance (Eq a) => Eq (DirTree a) where
   (==) = eq1DirTree (==)
 
-instance Ord a => Ord (DirTree a) where
+instance (Ord a) => Ord (DirTree a) where
   compare = ord1DirTree compare
 
 instance Eq1 DirTree where
@@ -151,7 +151,7 @@ instance Eq1 DirTree where
 instance Ord1 DirTree where
   liftCompare = ord1DirTree
 
-instance NFData a => NFData (DirTree a)
+instance (NFData a) => NFData (DirTree a)
 
 instance Foldable DirTree where
   foldMap func =
@@ -165,7 +165,7 @@ instance Traversable DirTree where
       NodeFile v -> NodeFile <$> func v
       NodeDir df -> NodeDir <$> traverse func df
 
-instance HasCodec a => HasCodec (DirTree a) where
+instance (HasCodec a) => HasCodec (DirTree a) where
   codec =
     named "DirTree" $
       dimapCodec f g $
@@ -223,10 +223,10 @@ instance (Validity a) => Validity (DirForest a) where
                         ]
       ]
 
-instance Eq a => Eq (DirForest a) where
+instance (Eq a) => Eq (DirForest a) where
   (==) = eq1DirForest (==)
 
-instance Ord a => Ord (DirForest a) where
+instance (Ord a) => Ord (DirForest a) where
   compare = ord1DirForest compare
 
 instance Eq1 DirForest where
@@ -235,7 +235,7 @@ instance Eq1 DirForest where
 instance Ord1 DirForest where
   liftCompare = ord1DirForest
 
-instance NFData a => NFData (DirForest a)
+instance (NFData a) => NFData (DirForest a)
 
 instance Foldable DirForest where
   foldMap func (DirForest dtm) = foldMap (foldMap func) dtm
@@ -243,7 +243,7 @@ instance Foldable DirForest where
 instance Traversable DirForest where
   traverse func (DirForest dtm) = DirForest <$> traverse (traverse func) dtm
 
-instance HasCodec a => HasCodec (DirForest a) where
+instance (HasCodec a) => HasCodec (DirForest a) where
   codec =
     named "DirForest" $
       dimapCodec
@@ -269,7 +269,7 @@ data FOD a
   | D
   deriving (Show, Eq, Ord, Generic, Functor)
 
-instance Validity a => Validity (FOD a)
+instance (Validity a) => Validity (FOD a)
 
 -- | The empty forest
 empty :: DirForest a
@@ -302,7 +302,7 @@ singletonDir rp =
 mapWithPath :: (Path Rel File -> a -> b) -> DirForest a -> DirForest b
 mapWithPath func df = runIdentity $ traverseWithPath (\a b -> Identity $ func a b) df
 
-traverseWithPath :: forall a b f. Applicative f => (Path Rel File -> a -> f b) -> DirForest a -> f (DirForest b)
+traverseWithPath :: forall a b f. (Applicative f) => (Path Rel File -> a -> f b) -> DirForest a -> f (DirForest b)
 traverseWithPath func = goF [reldir|./|]
   where
     goF :: Path Rel Dir -> DirForest a -> f (DirForest b)
@@ -316,7 +316,7 @@ traverseWithPath func = goF [reldir|./|]
         let rd = cur </> fromJust (parseRelDir fp)
          in NodeDir <$> goF rd df
 
-traverseWithPath_ :: forall a b f. Applicative f => (Path Rel File -> a -> f b) -> DirForest a -> f ()
+traverseWithPath_ :: forall a b f. (Applicative f) => (Path Rel File -> a -> f b) -> DirForest a -> f ()
 traverseWithPath_ func = goF [reldir|./|]
   where
     goF :: Path Rel Dir -> DirForest a -> f ()
