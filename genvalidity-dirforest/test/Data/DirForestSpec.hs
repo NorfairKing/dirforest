@@ -14,7 +14,6 @@ import Data.Either
 import Data.Functor.Identity
 import Data.GenValidity.ByteString ()
 import Data.GenValidity.DirForest
-import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map (Map)
 import qualified Data.Map as M

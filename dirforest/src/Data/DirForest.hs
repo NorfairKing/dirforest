@@ -113,7 +113,6 @@ import Control.Monad.IO.Class
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Functor.Classes
 import Data.Functor.Identity
-import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 import Data.Map (Map)
