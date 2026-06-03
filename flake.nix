@@ -5,7 +5,7 @@
     extra-trusted-public-keys = "dirforest.cachix.org-1:C/TnLXGIkOL7jrhIZo95ahDttiZIc6XPaMV9xWQJddY=";
   };
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-26.05";
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
   };
 
